@@ -202,6 +202,7 @@ pub fn scan_folder(root: &Path) -> Vec<Finding> {
     let mut pyc_targets: Vec<PathBuf> = Vec::new();
     let mut pyc_size = 0u64;
     let mut pyc_files = 0u64;
+    let owned = safety::owned_paths();
 
     let mut it = WalkDir::new(root).follow_links(false).into_iter();
     loop {
@@ -284,6 +285,9 @@ pub fn scan_folder(root: &Path) -> Vec<Finding> {
                 Err(_) => continue,
             };
             if safety::is_offline(&meta) {
+                continue;
+            }
+            if safety::is_owned_by(&owned, &path) {
                 continue;
             }
             let size = meta.len();

@@ -49,6 +49,12 @@ fn purge_contents(dir: &Path) {
     }
 }
 
+/// Delete a folder and everything in it (best effort, never follows links).
+pub fn purge_dir(dir: &Path) {
+    purge_contents(dir);
+    let _ = fs::remove_dir(dir);
+}
+
 fn recycle(t: &Path, whole: bool) {
     if whole {
         let _ = trash::delete(t);

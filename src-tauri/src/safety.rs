@@ -102,11 +102,8 @@ pub fn is_sane_target(path: &Path) -> bool {
     if p.ends_with("\\.git") {
         return false;
     }
-    if let Ok(la) = std::env::var("LOCALAPPDATA") {
-        let own = norm(&Path::new(&la).join("GA-Agent"));
-        if p == own || p.starts_with(&format!("{}\\", own)) {
-            return false;
-        }
+    if is_app_owned(path) {
+        return false;
     }
     path.components().count() >= 3
 }
@@ -123,4 +120,31 @@ pub fn is_protected(path: &Path) -> bool {
         }
     }
     false
+}
+
+/// Paths owned by the app itself (settings, journal, engine, and the user's chosen
+/// model file / data folder). They are never cleaned, compressed, or reported.
+pub fn owned_paths() -> Vec<String> {
+    let mut v = vec![norm(&crate::agent::base_dir())];
+    let c = crate::agent::load_config();
+    if let Some(m) = c.model_path {
+        v.push(norm(Path::new(&m)));
+    }
+    if let Some(d) = c.data_dir {
+        if !d.trim().is_empty() {
+            v.push(norm(Path::new(&d)));
+        }
+    }
+    v
+}
+
+pub fn is_owned_by(owned: &[String], path: &Path) -> bool {
+    let p = norm(path);
+    owned
+        .iter()
+        .any(|o| p == *o || p.starts_with(&format!("{}\\", o)))
+}
+
+pub fn is_app_owned(path: &Path) -> bool {
+    is_owned_by(&owned_paths(), path)
 }

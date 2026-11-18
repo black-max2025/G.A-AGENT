@@ -19,7 +19,7 @@ pub struct AgentProc {
     pub child: Option<Child>,
 }
 
-fn es<E: ToString>(e: E) -> String {
+pub fn es<E: ToString>(e: E) -> String {
     e.to_string()
 }
 
@@ -30,12 +30,21 @@ pub fn base_dir() -> PathBuf {
     b.join("GA-Agent")
 }
 
+/// Where the engine and downloaded models live. Defaults to the app folder,
+/// but the user can point it to any drive (e.g. D:\\) so C: is not used.
+pub fn data_dir() -> PathBuf {
+    match load_config().data_dir {
+        Some(d) if !d.trim().is_empty() => PathBuf::from(d),
+        _ => base_dir(),
+    }
+}
+
 fn models_dir() -> PathBuf {
-    base_dir().join("models")
+    data_dir().join("models")
 }
 
 fn llama_dir() -> PathBuf {
-    base_dir().join("llama")
+    data_dir().join("llama")
 }
 
 fn config_path() -> PathBuf {
@@ -43,11 +52,15 @@ fn config_path() -> PathBuf {
 }
 
 #[derive(Serialize, Deserialize, Default, Clone)]
-struct Config {
-    model_path: Option<String>,
+pub struct Config {
+    pub model_path: Option<String>,
+    #[serde(default)]
+    pub data_dir: Option<String>,
+    #[serde(default)]
+    pub allow_commands: bool,
 }
 
-fn load_config() -> Config {
+pub fn load_config() -> Config {
     std::fs::read_to_string(config_path())
         .ok()
         .and_then(|s| serde_json::from_str(&s).ok())
@@ -79,6 +92,8 @@ fn find_server() -> Option<PathBuf> {
 
 #[derive(Serialize)]
 pub struct AgentStatus {
+    pub data_dir: String,
+    pub allow_commands: bool,
     pub server_installed: bool,
     pub model_path: Option<String>,
     pub model_exists: bool,
@@ -111,6 +126,8 @@ pub fn agent_status(state: State<'_, AppState>) -> AgentStatus {
         }
     }
     AgentStatus {
+        data_dir: data_dir().to_string_lossy().to_string(),
+        allow_commands: cfg.allow_commands,
         server_installed: find_server().is_some(),
         model_path: cfg.model_path,
         model_exists,
@@ -213,7 +230,7 @@ pub async fn agent_install_server(app: AppHandle) -> Result<String, String> {
     let url = pick("bin-win-cpu-x64")
         .or_else(|| pick("bin-win-avx2-x64"))
         .ok_or_else(|| "لم أجد نسخة Windows المناسبة من llama.cpp".to_string())?;
-    let zip_path = base_dir().join("llama.zip");
+    let zip_path = data_dir().join("llama.zip");
     download_to(&app, &url, &zip_path, "llama-server").await?;
     extract_zip(&zip_path, &llama_dir())?;
     let _ = std::fs::remove_file(&zip_path);
@@ -238,9 +255,9 @@ pub async fn agent_download_model(
     let dest = models_dir().join(&name);
     download_to(&app, &url, &dest, &name).await?;
     let p = dest.to_string_lossy().to_string();
-    save_config(&Config {
-        model_path: Some(p.clone()),
-    })?;
+    let mut cfg = load_config();
+    cfg.model_path = Some(p.clone());
+    save_config(&cfg)?;
     Ok(p)
 }
 
@@ -250,12 +267,13 @@ pub fn agent_set_model(path: String) -> Result<(), String> {
     if !p.is_file() || !path.to_lowercase().ends_with(".gguf") {
         return Err("اختر ملف نموذج بصيغة .gguf موجود فعلاً".to_string());
     }
-    save_config(&Config {
-        model_path: Some(path),
-    })
+    // The model stays exactly where the user keeps it; nothing is copied or moved.
+    let mut cfg = load_config();
+    cfg.model_path = Some(path);
+    save_config(&cfg)
 }
 
-fn local_client(timeout_secs: u64) -> Result<reqwest::Client, String> {
+pub fn local_client(timeout_secs: u64) -> Result<reqwest::Client, String> {
     reqwest::Client::builder()
         .no_proxy()
         .timeout(Duration::from_secs(timeout_secs))
@@ -289,7 +307,8 @@ pub async fn agent_start(state: State<'_, AppState>) -> Result<(), String> {
                 .arg("--port")
                 .arg(PORT.to_string())
                 .arg("-c")
-                .arg("4096");
+                .arg("8192")
+                .arg("--jinja");
             if let Some(dir) = exe.parent() {
                 cmd.current_dir(dir);
             }
@@ -334,7 +353,8 @@ async fn complete(system: &str, user: &str, max_tokens: u32) -> Result<String, S
             { "role": "user", "content": user }
         ],
         "temperature": 0.2,
-        "max_tokens": max_tokens
+        "max_tokens": max_tokens,
+        "chat_template_kwargs": { "enable_thinking": false }
     });
     let v: serde_json::Value = client
         .post(format!("http://127.0.0.1:{}/v1/chat/completions", PORT))
@@ -387,9 +407,11 @@ pub async fn agent_analyze(
 ) -> Result<Vec<Verdict>, String> {
     let items: Vec<(String, String)> = {
         let g = state.findings.lock().map_err(es)?;
-        ids.iter()
+        let v: Vec<(String, String)> = ids
+            .iter()
             .filter_map(|id| g.get(id).map(|f| (id.clone(), describe(f))))
-            .collect()
+            .collect();
+        v
     };
     let mut verdicts: Vec<Verdict> = Vec::new();
     for batch in items.chunks(8) {
@@ -443,4 +465,23 @@ pub async fn agent_chat(message: String, context: String) -> Result<String, Stri
         context
     );
     complete(&system, &message, 600).await
+}
+
+#[tauri::command]
+pub fn agent_set_data_dir(path: String) -> Result<(), String> {
+    let p = Path::new(&path);
+    if !p.is_absolute() {
+        return Err("اكتب مساراً كاملاً مثل D:\\GA-Models".to_string());
+    }
+    std::fs::create_dir_all(p).map_err(es)?;
+    let mut cfg = load_config();
+    cfg.data_dir = Some(path);
+    save_config(&cfg)
+}
+
+#[tauri::command]
+pub fn agent_set_allow_commands(allow: bool) -> Result<(), String> {
+    let mut cfg = load_config();
+    cfg.allow_commands = allow;
+    save_config(&cfg)
 }

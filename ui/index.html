@@ -8,18 +8,63 @@
 </head>
 <body>
 <header>
-  <div class="brand"><span class="logo">GA</span><div><h1>G.A AGENT</h1><small>منظّف ذكي وآمن بعقل ذكاء اصطناعي محلي</small></div></div>
+  <div class="brand"><span class="logo">GA</span><div><h1>G.A AGENT</h1><small>وكيل ذكي لجهازك — يوفّر المساحة بأمان ويمكنك التراجع دائماً</small></div></div>
   <nav id="tabs">
-    <button data-tab="clean" class="active">التنظيف</button>
+    <button data-tab="start" class="active">ابدأ</button>
+    <button data-tab="assistant">المساعد</button>
+    <button data-tab="log">السجل</button>
+    <button data-tab="clean">تنظيف متقدم</button>
     <button data-tab="folders">الفولدرات</button>
-    <button data-tab="brain">العقل (AI)</button>
+    <button data-tab="brain">العقل</button>
     <button data-tab="safety">الأمان</button>
   </nav>
 </header>
 
 <main>
-<!-- ================= CLEAN ================= -->
-<section id="tab-clean" class="tab active">
+<!-- ================= START ================= -->
+<section id="tab-start" class="tab active">
+  <div class="card"><div id="driveStrip"></div></div>
+  <div class="card center">
+    <h2>وفّر مساحة جهازك بضغطة واحدة</h2>
+    <p class="muted">سأفحص جهازك وأعطيك خطة واضحة بالأرقام. لن يُحذف أو يُغيَّر شيء قبل موافقتك، وكل تصغير يمكن التراجع عنه.</p>
+    <button id="btnPlan" class="primary big">افحص جهازي وأعطني خطة</button>
+    <div id="planStatus" class="muted"></div>
+  </div>
+
+  <div id="planCard" hidden>
+    <div class="card sticky">
+      <div class="row">
+        <strong id="planTotal"></strong>
+        <span class="sep"></span>
+        <button id="btnRun" class="primary">نفّذ الخطة المحددة</button>
+      </div>
+    </div>
+    <div id="planSections"></div>
+  </div>
+  <div class="card" id="runResult" hidden></div>
+</section>
+
+<!-- ================= ASSISTANT ================= -->
+<section id="tab-assistant" class="tab">
+  <div class="card">
+    <div class="row"><h3 class="grow">تحدّث مع الوكيل</h3><button id="btnResetChat">محادثة جديدة</button></div>
+    <div class="muted">اطلب بالعربية ما تريد: «وين راحت مساحتي؟»، «نظّف الكاش»، «صغّر البرامج الكبيرة»، «ابحث عن ملف كذا». أي إجراء يغيّر شيئاً سيطلب موافقتك أولاً.</div>
+    <div id="chat"></div>
+    <div class="row"><input id="chatIn" class="grow" placeholder="اكتب طلبك هنا..."><button id="btnSend" class="primary">إرسال</button></div>
+  </div>
+</section>
+
+<!-- ================= LOG ================= -->
+<section id="tab-log" class="tab">
+  <div class="card">
+    <div class="row"><h3 class="grow">سجل العمليات</h3><button id="btnLogRefresh">تحديث</button></div>
+    <div class="muted">كل تصغير أو تجميد يظهر هنا ويمكنك التراجع عنه.</div>
+    <div id="logList"></div>
+  </div>
+</section>
+
+<!-- ================= ADVANCED CLEAN ================= -->
+<section id="tab-clean" class="tab">
   <div class="card">
     <div class="row">
       <button id="btnQuick" class="primary">فحص سريع للنظام (كاش ومؤقتات)</button>
@@ -30,7 +75,6 @@
     </div>
     <div id="status" class="muted">اضغط «فحص سريع» للبدء. لن يُحذف شيء قبل موافقتك.</div>
   </div>
-
   <div class="card" id="resultCard" hidden>
     <div class="row">
       <strong id="summary"></strong>
@@ -63,25 +107,39 @@
     <h3>حالة العقل</h3>
     <div id="brainStatus" class="muted">...</div>
     <div class="row wrap">
-      <button id="btnInstallServer">١) تثبيت محرك llama.cpp</button>
-      <button id="btnStart" class="primary">٢) تشغيل العقل</button>
+      <button id="btnAuto" class="primary">تجهيز العقل تلقائياً (موصى به)</button>
+      <button id="btnStart">تشغيل</button>
       <button id="btnStop">إيقاف</button>
     </div>
     <div id="dlProgress" class="muted"></div>
   </div>
+
   <div class="card">
-    <h3>اختر نموذج GGUF</h3>
+    <h3>أين تُحفظ ملفات العقل؟</h3>
+    <div class="muted">ملف النموذج كبير (حوالي 1.3GB). اختر قرصاً فيه مساحة وسيُحفظ هناك بدل القرص C. إن كان لديك نموذج جاهز فاستخدمه مكانه بدون نسخه.</div>
+    <div class="row">
+      <input id="dataDir" class="grow" placeholder="مثال: D:\GA-Models">
+      <button id="btnPickDir">استعراض</button>
+      <button id="btnSaveDir">حفظ المكان</button>
+    </div>
     <div class="row wrap">
-      <button data-dl="1.5">تنزيل Qwen2.5 1.5B (~1.1GB، خفيف)</button>
-      <button data-dl="3">تنزيل Qwen2.5 3B (~2.1GB، أذكى)</button>
-      <button id="btnPickModel">استخدام ملف .gguf لدي</button>
+      <button id="btnPickModel">استخدام ملف .gguf لدي (يبقى في مكانه)</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>اختيار نموذج آخر</h3>
+    <div class="row wrap">
+      <button data-dl="q35">Qwen3.5 2B (الافتراضي، ~1.3GB)</button>
+      <button data-dl="1.5">Qwen2.5 1.5B (~1.1GB)</button>
+      <button data-dl="3">Qwen2.5 3B (~2.1GB)</button>
     </div>
     <div class="muted">النموذج استشاري فقط؛ طبقة الأمان لها الكلمة الأخيرة ولا يستطيع تجاوز القائمة المحمية.</div>
   </div>
+
   <div class="card">
-    <h3>تحدّث مع الوكيل</h3>
-    <div id="chat"></div>
-    <div class="row"><input id="chatIn" class="grow" placeholder="مثال: ما أأمن شيء أحذفه من هذه القائمة؟"><button id="btnSend" class="primary">إرسال</button></div>
+    <h3>إعدادات متقدمة</h3>
+    <label class="chk"><input type="checkbox" id="allowCmd"> السماح للوكيل بتشغيل أوامر PowerShell (كل أمر يطلب موافقتك ويُشرح بجملة بسيطة)</label>
   </div>
 </section>
 
@@ -91,15 +149,25 @@
     <h3>كيف يحميك التطبيق</h3>
     <ul class="safe-list">
       <li>الواجهة لا ترسل مسارات للحذف أبداً؛ تُرسل فقط معرّفات نتائج فحص أنتجها التطبيق نفسه.</li>
-      <li>قائمة محمية ثابتة: Windows وProgram Files وProgramData وAppData وجذر القرص والمجلدات الشخصية نفسها.</li>
-      <li>لا يتبع الروابط ولا الـ Junctions، ولا يقرأ ملفات OneDrive غير المحمّلة.</li>
-      <li>الكاش الآمن يُحذف نهائياً (يُعاد تلقائياً)، أما أي شيء آخر فيُنقل إلى <b>سلة المحذوفات</b> ويمكن استرجاعه.</li>
-      <li>الملفات المقفلة أو قيد الاستخدام تُتخطى دون عنف.</li>
-      <li>العقل الذكي محلي بالكامل ولا يرسل بياناتك لأي مكان.</li>
+      <li>قائمة محمية ثابتة: Windows وProgram Files وProgramData وAppData وجذر القرص والمجلدات الشخصية نفسها، وملف النموذج الذي اخترته.</li>
+      <li>التصغير يستخدم ضغط Windows الأصلي: الملفات تبقى مكانها وتعمل كما هي، والتراجع بضغطة.</li>
+      <li>التجميد يضغط المجلد القديم في ملف واحد ويتحقق منه ملفاً ملفاً قبل حذف الأصل، والاسترجاع بضغطة.</li>
+      <li>الكاش الآمن يُحذف نهائياً (يُعاد تلقائياً)، أما أي شيء آخر فيُنقل إلى <b>سلة المحذوفات</b>.</li>
+      <li>لا يتبع الروابط ولا الـ Junctions، ولا يقرأ ملفات OneDrive غير المحمّلة، ويتخطى الملفات قيد الاستخدام.</li>
+      <li>العقل الذكي محلي بالكامل ولا يرسل بياناتك لأي مكان، وأي إجراء من الوكيل يحتاج موافقتك.</li>
     </ul>
   </div>
 </section>
 </main>
+
+<div id="modal" class="modal" hidden>
+  <div class="mbox">
+    <h3>الوكيل يطلب موافقتك</h3>
+    <div id="mTool" class="badge b-ask"></div>
+    <pre id="mText"></pre>
+    <div class="row"><button id="mYes" class="primary">موافق</button><button id="mNo">لا، ألغِ</button></div>
+  </div>
+</div>
 
 <div id="toast"></div>
 <script src="app.js"></script>
