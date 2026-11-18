@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>G.A AGENT</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="brand"><span class="logo">GA</span><div><h1>G.A AGENT</h1><small>منظّف ذكي وآمن بعقل ذكاء اصطناعي محلي</small></div></div>
+  <nav id="tabs">
+    <button data-tab="clean" class="active">التنظيف</button>
+    <button data-tab="folders">الفولدرات</button>
+    <button data-tab="brain">العقل (AI)</button>
+    <button data-tab="safety">الأمان</button>
+  </nav>
+</header>
+
+<main>
+<!-- ================= CLEAN ================= -->
+<section id="tab-clean" class="tab active">
+  <div class="card">
+    <div class="row">
+      <button id="btnQuick" class="primary">فحص سريع للنظام (كاش ومؤقتات)</button>
+      <span class="sep"></span>
+      <input id="deepPath" class="grow" placeholder="مسار لفحص عميق (مشاريع، مكررات، ملفات كبيرة...)">
+      <button id="btnBrowse">استعراض</button>
+      <button id="btnDeep">فحص عميق</button>
+    </div>
+    <div id="status" class="muted">اضغط «فحص سريع» للبدء. لن يُحذف شيء قبل موافقتك.</div>
+  </div>
+
+  <div class="card" id="resultCard" hidden>
+    <div class="row">
+      <strong id="summary"></strong>
+      <span class="sep"></span>
+      <button id="btnAi">اسأل العقل (AI)</button>
+      <button id="btnSelSafe">تحديد الآمن فقط</button>
+      <button id="btnSelNone">إلغاء التحديد</button>
+      <button id="btnClean" class="danger">نظّف المحدد</button>
+    </div>
+    <div id="list"></div>
+  </div>
+</section>
+
+<!-- ================= FOLDERS ================= -->
+<section id="tab-folders" class="tab">
+  <div class="card">
+    <div class="row">
+      <button id="btnUp">⬆ للأعلى</button>
+      <input id="ovPath" class="grow" placeholder="مسار المجلد">
+      <button id="btnOv" class="primary">تحليل</button>
+    </div>
+    <div class="muted">يعرض حجم كل مجلد ونوع بياناته الغالب. انقر مرتين على مجلد للدخول إليه.</div>
+  </div>
+  <div class="card"><div id="ovList"></div></div>
+</section>
+
+<!-- ================= BRAIN ================= -->
+<section id="tab-brain" class="tab">
+  <div class="card">
+    <h3>حالة العقل</h3>
+    <div id="brainStatus" class="muted">...</div>
+    <div class="row wrap">
+      <button id="btnInstallServer">١) تثبيت محرك llama.cpp</button>
+      <button id="btnStart" class="primary">٢) تشغيل العقل</button>
+      <button id="btnStop">إيقاف</button>
+    </div>
+    <div id="dlProgress" class="muted"></div>
+  </div>
+  <div class="card">
+    <h3>اختر نموذج GGUF</h3>
+    <div class="row wrap">
+      <button data-dl="1.5">تنزيل Qwen2.5 1.5B (~1.1GB، خفيف)</button>
+      <button data-dl="3">تنزيل Qwen2.5 3B (~2.1GB، أذكى)</button>
+      <button id="btnPickModel">استخدام ملف .gguf لدي</button>
+    </div>
+    <div class="muted">النموذج استشاري فقط؛ طبقة الأمان لها الكلمة الأخيرة ولا يستطيع تجاوز القائمة المحمية.</div>
+  </div>
+  <div class="card">
+    <h3>تحدّث مع الوكيل</h3>
+    <div id="chat"></div>
+    <div class="row"><input id="chatIn" class="grow" placeholder="مثال: ما أأمن شيء أحذفه من هذه القائمة؟"><button id="btnSend" class="primary">إرسال</button></div>
+  </div>
+</section>
+
+<!-- ================= SAFETY ================= -->
+<section id="tab-safety" class="tab">
+  <div class="card">
+    <h3>كيف يحميك التطبيق</h3>
+    <ul class="safe-list">
+      <li>الواجهة لا ترسل مسارات للحذف أبداً؛ تُرسل فقط معرّفات نتائج فحص أنتجها التطبيق نفسه.</li>
+      <li>قائمة محمية ثابتة: Windows وProgram Files وProgramData وAppData وجذر القرص والمجلدات الشخصية نفسها.</li>
+      <li>لا يتبع الروابط ولا الـ Junctions، ولا يقرأ ملفات OneDrive غير المحمّلة.</li>
+      <li>الكاش الآمن يُحذف نهائياً (يُعاد تلقائياً)، أما أي شيء آخر فيُنقل إلى <b>سلة المحذوفات</b> ويمكن استرجاعه.</li>
+      <li>الملفات المقفلة أو قيد الاستخدام تُتخطى دون عنف.</li>
+      <li>العقل الذكي محلي بالكامل ولا يرسل بياناتك لأي مكان.</li>
+    </ul>
+  </div>
+</section>
+</main>
+
+<div id="toast"></div>
+<script src="app.js"></script>
+</body>
+</html>
