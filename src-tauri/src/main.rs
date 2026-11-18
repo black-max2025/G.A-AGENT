@@ -2,13 +2,18 @@
 
 mod agent;
 mod assistant;
+mod assistant_ext;
 mod cleaner;
+mod files;
 mod overview;
 mod rules;
 mod safety;
 mod scanner;
+mod scheduler;
 mod shrink;
+mod store;
 mod sysinfo;
+mod sysops;
 
 use serde::Serialize;
 use std::collections::HashMap;
@@ -210,6 +215,11 @@ fn main() {
             agent: Mutex::new(agent::AgentProc::default()),
             session: Mutex::new(assistant::Session::default()),
         })
+        .setup(|app| {
+            let h = app.handle().clone();
+            tauri::async_runtime::spawn(scheduler::run_loop(h));
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             home_dir,
             disk_info,
@@ -223,6 +233,7 @@ fn main() {
             journal_undo,
             agent::agent_status,
             agent::agent_install_server,
+            agent::agent_import_server,
             agent::agent_download_model,
             agent::agent_set_model,
             agent::agent_set_data_dir,
@@ -232,7 +243,13 @@ fn main() {
             agent::agent_analyze,
             assistant::agent_send,
             assistant::agent_confirm,
-            assistant::agent_reset
+            assistant::agent_reset,
+            assistant_ext::agent_plan,
+            assistant_ext::memory_list,
+            assistant_ext::memory_forget,
+            assistant_ext::agent_set_domain,
+            assistant_ext::tasks_list,
+            assistant_ext::task_remove
         ])
         .build(tauri::generate_context!())
         .expect("error while building G.A AGENT");

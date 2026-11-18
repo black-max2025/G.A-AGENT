@@ -13,6 +13,7 @@
     <button data-tab="start" class="active">ابدأ</button>
     <button data-tab="assistant">المساعد</button>
     <button data-tab="log">السجل</button>
+    <button data-tab="tasks">المهام</button>
     <button data-tab="clean">تنظيف متقدم</button>
     <button data-tab="folders">الفولدرات</button>
     <button data-tab="brain">العقل</button>
@@ -49,8 +50,31 @@
   <div class="card">
     <div class="row"><h3 class="grow">تحدّث مع الوكيل</h3><button id="btnResetChat">محادثة جديدة</button></div>
     <div class="muted">اطلب بالعربية ما تريد: «وين راحت مساحتي؟»، «نظّف الكاش»، «صغّر البرامج الكبيرة»، «ابحث عن ملف كذا». أي إجراء يغيّر شيئاً سيطلب موافقتك أولاً.</div>
+    <div id="planBox" class="card" hidden></div>
     <div id="chat"></div>
     <div class="row"><input id="chatIn" class="grow" placeholder="اكتب طلبك هنا..."><button id="btnSend" class="primary">إرسال</button></div>
+  </div>
+</section>
+
+<!-- ================= TASKS ================= -->
+<section id="tab-tasks" class="tab">
+  <div class="card">
+    <div class="row"><h3 class="grow">المهام المجدولة</h3><button id="btnTasksRefresh">تحديث</button></div>
+    <div class="muted">اطلب من الوكيل مثلاً: «نظّف الكاش كل أسبوع» أو «ذكّرني بعد ساعة». تعمل المهام ما دام التطبيق مفتوحاً، وما فاتها تعمل مرة واحدة عند فتح التطبيق.</div>
+    <div id="taskList"></div>
+  </div>
+  <div class="card">
+    <div class="row"><h3 class="grow">ما يتذكره الوكيل عنك</h3><button id="btnMemRefresh">تحديث</button></div>
+    <div class="muted">معلومات تفضيلات فقط، محفوظة على جهازك. لا تُحفظ كلمات السر أبداً.</div>
+    <div id="memList"></div>
+  </div>
+  <div class="card">
+    <h3>مجالات الوكيل</h3>
+    <div class="muted">أوقف أي مجال لا تريد أن يعمل فيه الوكيل.</div>
+    <label class="chk"><input type="checkbox" data-domain="files"> الملفات والمستندات</label>
+    <label class="chk"><input type="checkbox" data-domain="programs"> البرامج والنظام</label>
+    <label class="chk"><input type="checkbox" data-domain="automation"> الأتمتة والجدولة والروابط</label>
+    <div class="muted">لربط برنامج: ضع ملف .json داخل مجلد connectors في مكان ملفات العقل، ثم اطلب من الوكيل تشغيله؛ كل تشغيل يطلب موافقتك. لا يوجد أي اتصال بالإنترنت.</div>
   </div>
 </section>
 
@@ -112,6 +136,16 @@
       <button id="btnStop">إيقاف</button>
     </div>
     <div id="dlProgress" class="muted"></div>
+    <div class="muted">كل ما يحتاجه العقل يُجهَّز تلقائياً: المحرك ثم النموذج ثم التشغيل. الإنترنت يُستخدم هنا فقط، مرة واحدة، لتنزيل المحرك والنموذج من مصادرهما الرسمية.</div>
+  </div>
+
+  <div class="card">
+    <h3>بدون إنترنت؟ استورد المحرك يدوياً</h3>
+    <div class="muted">نزّل ملف المحرك (llama.cpp لويندوز، ملف zip) من جهاز آخر، ثم اخترْه هنا. لا يحتاج التطبيق أي اتصال.</div>
+    <div class="row wrap">
+      <button id="btnImportZip">اختيار ملف المحرك (zip)</button>
+      <button id="btnImportDir">اختيار مجلد المحرك</button>
+    </div>
   </div>
 
   <div class="card">
@@ -154,7 +188,9 @@
       <li>التجميد يضغط المجلد القديم في ملف واحد ويتحقق منه ملفاً ملفاً قبل حذف الأصل، والاسترجاع بضغطة.</li>
       <li>الكاش الآمن يُحذف نهائياً (يُعاد تلقائياً)، أما أي شيء آخر فيُنقل إلى <b>سلة المحذوفات</b>.</li>
       <li>لا يتبع الروابط ولا الـ Junctions، ولا يقرأ ملفات OneDrive غير المحمّلة، ويتخطى الملفات قيد الاستخدام.</li>
-      <li>العقل الذكي محلي بالكامل ولا يرسل بياناتك لأي مكان، وأي إجراء من الوكيل يحتاج موافقتك.</li>
+      <li><span class="offline">أوفلاين</span> الوكيل يعمل على جهازك فقط: لا يملك أي أداة للإنترنت، ولا يتصل بأي طرف ثالث، ولا يرسل بياناتك لأي مكان. العقل يعمل على العنوان المحلي 127.0.0.1 فقط.</li>
+      <li>الاتصال الوحيد في التطبيق كله هو تنزيل المحرك أو النموذج عندما تضغط أنت زر التجهيز، ومن مواقع رسمية محددة فقط. ويمكنك تجنّبه كلياً بالاستيراد اليدوي.</li>
+      <li>أي إجراء من الوكيل يغيّر شيئاً على جهازك يحتاج موافقتك.</li>
     </ul>
   </div>
 </section>

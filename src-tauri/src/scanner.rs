@@ -251,10 +251,12 @@ pub fn scan_folder(root: &Path) -> Vec<Finding> {
                     "بيئة بايثون افتراضية",
                     "بيئة افتراضية يمكن إعادة إنشائها من requirements.",
                 )),
-                ".gradle" if parent.join("build.gradle").exists() || parent.join("build.gradle.kts").exists() => Some((
-                    "كاش Gradle للمشروع",
-                    "كاش بناء المشروع، يُعاد تلقائياً.",
-                )),
+                ".gradle"
+                    if parent.join("build.gradle").exists()
+                        || parent.join("build.gradle.kts").exists() =>
+                {
+                    Some(("كاش Gradle للمشروع", "كاش بناء المشروع، يُعاد تلقائياً."))
+                }
                 _ => None,
             };
             if let Some((label, reason)) = hit {
@@ -345,7 +347,10 @@ pub fn scan_folder(root: &Path) -> Vec<Finding> {
             age,
             format!("ملف كبير قديم: {}", name),
             "ملفات كبيرة",
-            format!("حجمه كبير ولم يُعدَّل منذ {} يوماً. قرّر أنت إن كنت تحتاجه.", age),
+            format!(
+                "حجمه كبير ولم يُعدَّل منذ {} يوماً. قرّر أنت إن كنت تحتاجه.",
+                age
+            ),
         ));
     }
 

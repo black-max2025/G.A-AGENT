@@ -51,6 +51,8 @@ pub struct JournalEntry {
     pub app: String,
     pub path: String,
     pub archive: Option<String>,
+    #[serde(default)]
+    pub moves: Option<Vec<(String, String)>>,
     pub before: u64,
     pub after: u64,
     pub time: u64,
@@ -101,18 +103,38 @@ fn new_id() -> String {
 fn app_info(name: &str) -> (String, String) {
     let n = name.to_lowercase();
     let table: &[(&str, &str, &str)] = &[
-        ("discord", "ديسكورد", "برنامج محادثة. تصغير ملفاته لا يغيّر طريقة عمله."),
-        ("vs code", "محرر الأكواد VS Code", "محرر برمجة. يعمل كالمعتاد بعد التصغير."),
-        ("spotify", "سبوتيفاي", "مشغّل موسيقى. ملفات البرنامج فقط تُصغَّر."),
+        (
+            "discord",
+            "ديسكورد",
+            "برنامج محادثة. تصغير ملفاته لا يغيّر طريقة عمله.",
+        ),
+        (
+            "vs code",
+            "محرر الأكواد VS Code",
+            "محرر برمجة. يعمل كالمعتاد بعد التصغير.",
+        ),
+        (
+            "spotify",
+            "سبوتيفاي",
+            "مشغّل موسيقى. ملفات البرنامج فقط تُصغَّر.",
+        ),
         ("slack", "سلاك", "برنامج عمل جماعي. يعمل كالمعتاد."),
-        ("teams", "مايكروسوفت تيمز", "برنامج اجتماعات. يعمل كالمعتاد."),
+        (
+            "teams",
+            "مايكروسوفت تيمز",
+            "برنامج اجتماعات. يعمل كالمعتاد.",
+        ),
         ("zoom", "زوم", "برنامج اجتماعات. يعمل كالمعتاد."),
         ("postman", "بوستمان", "أداة مطورين. تعمل كالمعتاد."),
         ("steam", "ستيم", "منصة ألعاب. ملفات الألعاب قد لا تُضغط كثيراً."),
         ("epic", "إيبك جيمز", "منصة ألعاب."),
         ("adobe", "أدوبي", "برامج تصميم. ملفاتها تُضغط جيداً عادةً."),
         ("obs", "OBS للتسجيل", "برنامج تسجيل. يعمل كالمعتاد."),
-        ("python", "بايثون", "لغة برمجة. ملفاتها تُضغط جيداً وتعمل كالمعتاد."),
+        (
+            "python",
+            "بايثون",
+            "لغة برمجة. ملفاتها تُضغط جيداً وتعمل كالمعتاد.",
+        ),
         ("rustup", "أدوات لغة Rust", "أدوات مطورين تُضغط جيداً."),
         ("cargo", "حزم لغة Rust", "مكتبات مطورين تُضغط جيداً."),
         ("gradle", "أدوات Gradle", "أدوات بناء تُضغط جيداً."),
@@ -139,9 +161,33 @@ fn app_info(name: &str) -> (String, String) {
 fn incompressible(ext: &str) -> bool {
     matches!(
         ext,
-        "zip" | "rar" | "7z" | "gz" | "xz" | "bz2" | "jpg" | "jpeg" | "png" | "webp" | "gif"
-            | "mp4" | "mkv" | "avi" | "mov" | "webm" | "mp3" | "aac" | "flac" | "m4a" | "ogg"
-            | "pak" | "vpk" | "bik" | "iso" | "cab" | "msi"
+        "zip"
+            | "rar"
+            | "7z"
+            | "gz"
+            | "xz"
+            | "bz2"
+            | "jpg"
+            | "jpeg"
+            | "png"
+            | "webp"
+            | "gif"
+            | "mp4"
+            | "mkv"
+            | "avi"
+            | "mov"
+            | "webm"
+            | "mp3"
+            | "aac"
+            | "flac"
+            | "m4a"
+            | "ogg"
+            | "pak"
+            | "vpk"
+            | "bik"
+            | "iso"
+            | "cab"
+            | "msi"
     )
 }
 
@@ -458,6 +504,7 @@ fn shrink_one(c: &Candidate) -> Result<JournalEntry, String> {
         before,
         after,
         time: now(),
+        moves: None,
         undone: false,
     };
     if after < before {
@@ -526,9 +573,7 @@ fn freeze_one(c: &Candidate) -> Result<JournalEntry, String> {
     if !dir.is_dir() || safety::is_protected(dir) {
         return Err("مسار غير مسموح".to_string());
     }
-    let parent = dir
-        .parent()
-        .ok_or_else(|| "لا يوجد مجلد أب".to_string())?;
+    let parent = dir.parent().ok_or_else(|| "لا يوجد مجلد أب".to_string())?;
     let name = dir
         .file_name()
         .map(|n| n.to_string_lossy().to_string())
@@ -564,6 +609,7 @@ fn freeze_one(c: &Candidate) -> Result<JournalEntry, String> {
         before,
         after: arch_size + leftover,
         time: now(),
+        moves: None,
         undone: false,
     };
     add_journal(entry.clone());
@@ -614,7 +660,10 @@ fn restore(e: &JournalEntry) -> Result<(), String> {
 
 // ----------------------------------------------------------------- public API
 
-pub fn apply_many<F: Fn(usize, usize, &str)>(items: &[Candidate], progress: F) -> Vec<ShrinkResult> {
+pub fn apply_many<F: Fn(usize, usize, &str)>(
+    items: &[Candidate],
+    progress: F,
+) -> Vec<ShrinkResult> {
     let total = items.len();
     let mut out = Vec::new();
     for (i, c) in items.iter().enumerate() {
@@ -658,7 +707,9 @@ pub fn undo(id: &str) -> Result<JournalEntry, String> {
         .position(|e| e.id == id && !e.undone)
         .ok_or_else(|| "العملية غير موجودة أو تم التراجع عنها".to_string())?;
     let entry = all[idx].clone();
-    if entry.kind == "freeze" {
+    if entry.kind == "move" {
+        undo_moves(&entry)?;
+    } else if entry.kind == "freeze" {
         restore(&entry)?;
     } else {
         let dir = PathBuf::from(&entry.path);
@@ -670,4 +721,47 @@ pub fn undo(id: &str) -> Result<JournalEntry, String> {
     all[idx].undone = true;
     write_journal(&all);
     Ok(all[idx].clone())
+}
+
+pub fn journal_move(app: &str, root: &str, moves: Vec<(String, String)>) -> String {
+    let id = new_id();
+    add_journal(JournalEntry {
+        id: id.clone(),
+        kind: "move".to_string(),
+        app: app.to_string(),
+        path: root.to_string(),
+        archive: None,
+        moves: Some(moves),
+        before: 0,
+        after: 0,
+        time: now(),
+        undone: false,
+    });
+    id
+}
+
+fn undo_moves(e: &JournalEntry) -> Result<(), String> {
+    let moves = e
+        .moves
+        .as_ref()
+        .ok_or_else(|| "لا توجد حركات مسجّلة".to_string())?;
+    let mut restored = 0usize;
+    for (src, dst) in moves.iter().rev() {
+        let (s, d) = (Path::new(src), Path::new(dst));
+        if d.exists() && !s.exists() {
+            if let Some(par) = s.parent() {
+                let _ = fs::create_dir_all(par);
+            }
+            if fs::rename(d, s).is_ok() {
+                restored += 1;
+            }
+            if let Some(dir) = d.parent() {
+                let _ = fs::remove_dir(dir);
+            }
+        }
+    }
+    if restored == 0 {
+        return Err("لم أستطع إرجاع أي ملف (ربما نُقلت أو حُذفت)".to_string());
+    }
+    Ok(())
 }

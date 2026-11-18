@@ -19,7 +19,9 @@ pub struct FolderInfo {
     pub age_days: Option<u64>,
 }
 
-const KINDS: [&str; 7] = ["media", "docs", "code", "archives", "programs", "temp", "other"];
+const KINDS: [&str; 7] = [
+    "media", "docs", "code", "archives", "programs", "temp", "other",
+];
 
 fn kind_index(ext: &str) -> usize {
     match ext {
@@ -27,8 +29,8 @@ fn kind_index(ext: &str) -> usize {
         | "mov" | "mp3" | "wav" | "flac" | "aac" | "m4a" | "webm" => 0,
         "pdf" | "doc" | "docx" | "xls" | "xlsx" | "ppt" | "pptx" | "txt" | "md" | "epub"
         | "odt" | "csv" => 1,
-        "rs" | "js" | "ts" | "py" | "java" | "c" | "cpp" | "h" | "cs" | "go" | "json"
-        | "html" | "css" | "toml" | "yml" | "yaml" | "map" => 2,
+        "rs" | "js" | "ts" | "py" | "java" | "c" | "cpp" | "h" | "cs" | "go" | "json" | "html"
+        | "css" | "toml" | "yml" | "yaml" | "map" => 2,
         "zip" | "rar" | "7z" | "tar" | "gz" | "iso" => 3,
         "exe" | "dll" | "msi" | "sys" | "node" | "lib" => 4,
         "tmp" | "cache" | "log" | "bak" | "etl" | "dmp" => 5,
@@ -65,7 +67,15 @@ fn classify(path: &Path, name: &str) -> String {
     let n = name.to_lowercase();
     if matches!(
         n.as_str(),
-        "node_modules" | "target" | "__pycache__" | ".cache" | ".gradle" | "venv" | ".venv" | "dist" | "build"
+        "node_modules"
+            | "target"
+            | "__pycache__"
+            | ".cache"
+            | ".gradle"
+            | "venv"
+            | ".venv"
+            | "dist"
+            | "build"
     ) {
         return "regenerable".to_string();
     }

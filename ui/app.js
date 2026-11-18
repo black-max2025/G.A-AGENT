@@ -20,7 +20,28 @@ function el(tag, cls, text) {
   if (text !== undefined) e.textContent = text;
   return e;
 }
-function setBusy(b) { document.querySelectorAll("main button").forEach((x) => (x.disabled = b)); }
+document.addEventListener("pointerdown", (ev) => {
+  const b = ev.target.closest && ev.target.closest("button");
+  if (!b) return;
+  b.classList.add("pressed");
+  setTimeout(() => b.classList.remove("pressed"), 180);
+  if (b.disabled) return;
+  const r = b.getBoundingClientRect(), d = Math.max(r.width, r.height);
+  const s = el("span", "ripple");
+  s.style.width = s.style.height = d + "px";
+  s.style.left = ev.clientX - r.left - d / 2 + "px";
+  s.style.top = ev.clientY - r.top - d / 2 + "px";
+  b.appendChild(s);
+  setTimeout(() => s.remove(), 600);
+});
+function setBusy(b) {
+  document.querySelectorAll("main button").forEach((x) => (x.disabled = b));
+  if (!b) document.querySelectorAll("button.busy").forEach((x) => x.classList.remove("busy"));
+}
+async function withBusy(btn, fn) {
+  setBusy(true); if (btn) { btn.disabled = false; btn.classList.add("busy"); }
+  try { return await fn(); } finally { if (btn) btn.classList.remove("busy"); setBusy(false); }
+}
 
 // ---------------------------------------------------------------- tabs
 document.querySelectorAll("#tabs button").forEach((b) =>
@@ -199,6 +220,7 @@ function showTurn(turn, holder) {
     turn.log.forEach((l) => row.appendChild(el("span", "chip", "🔧 " + l)));
     holder.parentNode.insertBefore(row, holder);
   }
+  refreshPlan();
   holder.textContent = turn.text || (turn.pending ? "أحتاج موافقتك على الإجراء التالي." : "...");
   if (turn.pending) openModal(turn.pending);
 }
@@ -223,7 +245,7 @@ async function send() {
 }
 $("btnSend").onclick = send;
 $("chatIn").addEventListener("keydown", (e) => { if (e.key === "Enter") send(); });
-$("btnResetChat").onclick = async () => { await invoke("agent_reset"); $("chat").replaceChildren(); };
+$("btnResetChat").onclick = async () => { await invoke("agent_reset"); $("chat").replaceChildren(); refreshPlan(); };
 
 // ================================================================ LOG
 async function loadLog() {
@@ -422,40 +444,118 @@ $("btnSaveDir").onclick = async () => {
   catch (e) { toast("خطأ: " + e, 8000); }
   refreshBrain();
 };
-$("btnAuto").onclick = async () => {
-  try {
-    setBusy(true);
-    let s = await refreshBrain();
-    if (!s.server_installed) { $("dlProgress").textContent = "تثبيت المحرك..."; await invoke("agent_install_server"); s = await refreshBrain(); }
-    if (!s.model_path || !s.model_exists) { await downloadModel(MODELS.q35); s = await refreshBrain(); }
-    $("dlProgress").textContent = "جارٍ تحميل النموذج في الذاكرة...";
-    await invoke("agent_start");
-    $("dlProgress").textContent = "";
-    toast("العقل جاهز ويعمل 🎉");
-  } catch (e) { toast("خطأ: " + e, 9000); $("dlProgress").textContent = ""; }
-  finally { setBusy(false); refreshBrain(); }
-};
-document.querySelectorAll("[data-dl]").forEach((b) => (b.onclick = async () => {
-  try { setBusy(true); await downloadModel(MODELS[b.dataset.dl]); toast("تم تنزيل النموذج"); }
-  catch (e) { toast("خطأ: " + e, 8000); }
-  finally { setBusy(false); refreshBrain(); }
-}));
-$("btnPickModel").onclick = async () => {
+// One flow for everything: engine (if missing) -> model (if missing) -> start.
+async function prepareBrain(wantModel) {
+  let s = await refreshBrain();
+  if (!s.server_installed && !wantModel) {
+    $("dlProgress").textContent = "تثبيت المحرك...";
+    await invoke("agent_install_server"); s = await refreshBrain();
+  }
+  if (wantModel) { await downloadModel(wantModel); s = await refreshBrain(); }
+  else if (!s.model_path || !s.model_exists) { await downloadModel(MODELS.q35); s = await refreshBrain(); }
+  if (!s.server_installed) throw "المحرك غير مثبّت. استخدم زر استيراد المحرك إن كنت بلا إنترنت.";
+  $("dlProgress").textContent = "جارٍ تحميل النموذج في الذاكرة...";
+  await invoke("agent_start");
+  $("dlProgress").textContent = "";
+  toast("العقل جاهز ويعمل 🎉");
+}
+$("btnAuto").onclick = (ev) => withBusy(ev.currentTarget, async () => {
+  try { await prepareBrain(null); } catch (e) { toast("خطأ: " + e, 9000); $("dlProgress").textContent = ""; }
+  refreshBrain();
+});
+document.querySelectorAll("[data-dl]").forEach((b) => (b.onclick = (ev) => withBusy(ev.currentTarget, async () => {
+  try { await prepareBrain(MODELS[b.dataset.dl]); } catch (e) { toast("خطأ: " + e, 9000); $("dlProgress").textContent = ""; }
+  refreshBrain();
+})));
+$("btnPickModel").onclick = (ev) => withBusy(ev.currentTarget, async () => {
   const p = await dialog.open({ filters: [{ name: "GGUF", extensions: ["gguf"] }] });
   if (!p) return;
-  try { await invoke("agent_set_model", { path: p }); toast("تم اختيار النموذج وسيبقى في مكانه"); } catch (e) { toast("خطأ: " + e, 8000); }
+  try {
+    await invoke("agent_set_model", { path: p });
+    toast("تم اختيار النموذج وسيبقى في مكانه");
+    const s = await refreshBrain();
+    if (s && s.server_installed) await prepareBrain(null);
+    else toast("اختر الآن المحرك: زر التجهيز التلقائي أو الاستيراد اليدوي", 7000);
+  } catch (e) { toast("خطأ: " + e, 8000); $("dlProgress").textContent = ""; }
   refreshBrain();
-};
-$("btnStart").onclick = async () => {
-  try { setBusy(true); $("dlProgress").textContent = "جارٍ تحميل النموذج في الذاكرة..."; await invoke("agent_start"); $("dlProgress").textContent = ""; toast("العقل يعمل الآن"); }
-  catch (e) { toast("خطأ: " + e, 8000); }
-  finally { setBusy(false); refreshBrain(); }
-};
+});
+async function importEngine(directory) {
+  const p = await dialog.open(directory ? { directory: true } : { filters: [{ name: "ZIP", extensions: ["zip"] }] });
+  if (!p) return;
+  try {
+    await invoke("agent_import_server", { path: p });
+    toast("تم استيراد المحرك بدون إنترنت");
+    const s = await refreshBrain();
+    if (s && s.model_exists) await prepareBrain(null);
+  } catch (e) { toast("خطأ: " + e, 9000); $("dlProgress").textContent = ""; }
+  refreshBrain();
+}
+$("btnImportZip").onclick = (ev) => withBusy(ev.currentTarget, () => importEngine(false));
+$("btnImportDir").onclick = (ev) => withBusy(ev.currentTarget, () => importEngine(true));
+$("btnStart").onclick = (ev) => withBusy(ev.currentTarget, async () => {
+  try { await prepareBrain(null); } catch (e) { toast("خطأ: " + e, 8000); $("dlProgress").textContent = ""; }
+  refreshBrain();
+});
 $("btnStop").onclick = async () => { await invoke("agent_stop"); refreshBrain(); };
 $("allowCmd").onchange = async (e) => {
   const on = e.target.checked;
   if (on && !confirm("تفعيل الأوامر يسمح للوكيل باقتراح أوامر على جهازك. كل أمر سيطلب موافقتك. هل تريد التفعيل؟")) { e.target.checked = false; return; }
   try { await invoke("agent_set_allow_commands", { allow: on }); } catch (er) { toast("خطأ: " + er); }
 };
+
+// ================================================================ PLAN / TASKS / MEMORY
+async function refreshPlan() {
+  try {
+    const p = await invoke("agent_plan");
+    const box = $("planBox");
+    box.replaceChildren();
+    if (!p.length) { box.hidden = true; return; }
+    box.hidden = false;
+    box.appendChild(el("b", "", "خطة الوكيل"));
+    p.forEach((s, i) => box.appendChild(el("div", s.done ? "muted" : "", (s.done ? "✅ " : "⬜ ") + (i + 1) + ". " + s.text)));
+  } catch (e) { /* ignore */ }
+}
+async function loadTasks() {
+  const box = $("taskList"); box.replaceChildren();
+  try {
+    const list = await invoke("tasks_list");
+    if (!list.length) { box.appendChild(el("div", "muted", "لا توجد مهام بعد.")); return; }
+    list.forEach((t) => {
+      const r = el("div", "lg");
+      const info = el("div");
+      info.appendChild(el("div", "nm", t.title + (t.enabled ? "" : " (انتهت)")));
+      info.appendChild(el("div", "rs muted", "النوع: " + ({ clean_safe: "تنظيف الكاش الآمن", organize: "ترتيب مجلد", reminder: "تذكير" }[t.kind] || t.kind) +
+        (t.repeat_hours ? " • كل " + t.repeat_hours + " ساعة" : " • مرة واحدة") + (t.last_result ? " • آخر نتيجة: " + t.last_result : "")));
+      const b = el("button", "danger", "حذف");
+      b.onclick = async () => { try { await invoke("task_remove", { id: t.id }); } catch (e) { toast("خطأ: " + e); } loadTasks(); };
+      r.appendChild(info); r.appendChild(el("span")); r.appendChild(b); box.appendChild(r);
+    });
+  } catch (e) { box.textContent = "خطأ: " + e; }
+}
+async function loadMemory() {
+  const box = $("memList"); box.replaceChildren();
+  try {
+    const list = await invoke("memory_list");
+    if (!list.length) { box.appendChild(el("div", "muted", "لا توجد معلومات محفوظة.")); return; }
+    list.forEach(([k, v]) => {
+      const r = el("div", "lg");
+      r.appendChild(el("div", "", k + ": " + v)); r.appendChild(el("span"));
+      const b = el("button", "", "نسيان");
+      b.onclick = async () => { try { await invoke("memory_forget", { key: k }); } catch (e) { toast("خطأ: " + e); } loadMemory(); };
+      r.appendChild(b); box.appendChild(r);
+    });
+  } catch (e) { box.textContent = "خطأ: " + e; }
+}
+async function loadDomains() {
+  const s = await invoke("agent_status");
+  document.querySelectorAll("[data-domain]").forEach((c) => (c.checked = !s.disabled_domains.includes(c.dataset.domain)));
+}
+document.querySelectorAll("[data-domain]").forEach((c) => (c.onchange = async () => {
+  try { await invoke("agent_set_domain", { domain: c.dataset.domain, enabled: c.checked }); } catch (e) { toast("خطأ: " + e); }
+}));
+$("btnTasksRefresh").onclick = loadTasks;
+$("btnMemRefresh").onclick = loadMemory;
+document.querySelector('[data-tab="tasks"]').addEventListener("click", () => { loadTasks(); loadMemory(); loadDomains(); });
+listen("task-ran", (ev) => { toast("⏰ " + ev.payload.title + ": " + ev.payload.result, 9000); loadTasks(); });
 
 loadDrives();

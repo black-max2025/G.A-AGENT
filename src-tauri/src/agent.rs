@@ -58,6 +58,8 @@ pub struct Config {
     pub data_dir: Option<String>,
     #[serde(default)]
     pub allow_commands: bool,
+    #[serde(default)]
+    pub disabled_domains: Vec<String>,
 }
 
 pub fn load_config() -> Config {
@@ -67,7 +69,7 @@ pub fn load_config() -> Config {
         .unwrap_or_default()
 }
 
-fn save_config(c: &Config) -> Result<(), String> {
+pub fn save_config(c: &Config) -> Result<(), String> {
     std::fs::create_dir_all(base_dir()).map_err(es)?;
     let s = serde_json::to_string_pretty(c).map_err(es)?;
     std::fs::write(config_path(), s).map_err(es)
@@ -94,6 +96,7 @@ fn find_server() -> Option<PathBuf> {
 pub struct AgentStatus {
     pub data_dir: String,
     pub allow_commands: bool,
+    pub disabled_domains: Vec<String>,
     pub server_installed: bool,
     pub model_path: Option<String>,
     pub model_exists: bool,
@@ -128,6 +131,7 @@ pub fn agent_status(state: State<'_, AppState>) -> AgentStatus {
     AgentStatus {
         data_dir: data_dir().to_string_lossy().to_string(),
         allow_commands: cfg.allow_commands,
+        disabled_domains: cfg.disabled_domains.clone(),
         server_installed: find_server().is_some(),
         model_path: cfg.model_path,
         model_exists,
@@ -136,11 +140,49 @@ pub fn agent_status(state: State<'_, AppState>) -> AgentStatus {
     }
 }
 
-async fn download_to(app: &AppHandle, url: &str, dest: &Path, label: &str) -> Result<(), String> {
-    let client = reqwest::Client::builder()
-        .user_agent("GA-Agent/0.1")
+/// The ONLY internet access in the whole app: a one-time download of the engine or a model,
+/// started by the user, from these hosts only. The agent itself has no network tools.
+fn host_allowed(u: &reqwest::Url) -> bool {
+    if u.scheme() != "https" {
+        return false;
+    }
+    let h = u.host_str().unwrap_or("").to_lowercase();
+    const OK: [&str; 7] = [
+        "huggingface.co",
+        "hf.co",
+        "github.com",
+        "api.github.com",
+        "githubusercontent.com",
+        "cdn-lfs.huggingface.co",
+        "xethub.hf.co",
+    ];
+    OK.iter()
+        .any(|d| h == *d || h.ends_with(&format!(".{}", d)))
+}
+
+fn download_client() -> Result<reqwest::Client, String> {
+    reqwest::Client::builder()
+        .user_agent("GA-Agent")
+        .redirect(reqwest::redirect::Policy::custom(|a| {
+            if a.previous().len() > 8 || !host_allowed(a.url()) {
+                a.stop()
+            } else {
+                a.follow()
+            }
+        }))
         .build()
-        .map_err(es)?;
+        .map_err(es)
+}
+
+async fn download_to(app: &AppHandle, url: &str, dest: &Path, label: &str) -> Result<(), String> {
+    let parsed = reqwest::Url::parse(url).map_err(es)?;
+    if !host_allowed(&parsed) {
+        return Err(
+            "هذا العنوان غير مسموح. التحميل مسموح فقط من مصادر النماذج والمحرك الرسمية."
+                .to_string(),
+        );
+    }
+    let client = download_client()?;
     let mut resp = client.get(url).send().await.map_err(es)?;
     if !resp.status().is_success() {
         return Err(format!("HTTP {}", resp.status()));
@@ -200,10 +242,19 @@ fn extract_zip(zip_path: &Path, out: &Path) -> Result<(), String> {
 /// Downloads the official llama.cpp Windows (CPU) build, which contains llama-server.exe.
 #[tauri::command]
 pub async fn agent_install_server(app: AppHandle) -> Result<String, String> {
-    let client = reqwest::Client::builder()
-        .user_agent("GA-Agent/0.1")
-        .build()
-        .map_err(es)?;
+    install_server(&app).await
+}
+
+/// Makes sure the engine exists; downloads it only when it is missing.
+async fn ensure_server(app: &AppHandle) -> Result<PathBuf, String> {
+    if let Some(p) = find_server() {
+        return Ok(p);
+    }
+    install_server(app).await.map(PathBuf::from)
+}
+
+async fn install_server(app: &AppHandle) -> Result<String, String> {
+    let client = download_client()?;
     let rel: serde_json::Value = client
         .get("https://api.github.com/repos/ggml-org/llama.cpp/releases/latest")
         .send()
@@ -231,7 +282,7 @@ pub async fn agent_install_server(app: AppHandle) -> Result<String, String> {
         .or_else(|| pick("bin-win-avx2-x64"))
         .ok_or_else(|| "لم أجد نسخة Windows المناسبة من llama.cpp".to_string())?;
     let zip_path = data_dir().join("llama.zip");
-    download_to(&app, &url, &zip_path, "llama-server").await?;
+    download_to(app, &url, &zip_path, "llama-server").await?;
     extract_zip(&zip_path, &llama_dir())?;
     let _ = std::fs::remove_file(&zip_path);
     find_server()
@@ -252,6 +303,8 @@ pub async fn agent_download_model(
     if !name.to_lowercase().ends_with(".gguf") {
         return Err("يجب أن يكون الملف بصيغة .gguf".to_string());
     }
+    // The engine is required for the model to work, so it is fetched first if missing.
+    ensure_server(&app).await?;
     let dest = models_dir().join(&name);
     download_to(&app, &url, &dest, &name).await?;
     let p = dest.to_string_lossy().to_string();
@@ -259,6 +312,34 @@ pub async fn agent_download_model(
     cfg.model_path = Some(p.clone());
     save_config(&cfg)?;
     Ok(p)
+}
+
+/// Offline import of the engine: a .zip file or a folder that contains llama-server.exe.
+#[tauri::command]
+pub fn agent_import_server(path: String) -> Result<String, String> {
+    let p = Path::new(&path);
+    let out = llama_dir();
+    std::fs::create_dir_all(&out).map_err(es)?;
+    if p.is_file() && path.to_lowercase().ends_with(".zip") {
+        extract_zip(p, &out)?;
+    } else if p.is_dir() {
+        for e in WalkDir::new(p).into_iter().filter_map(|e| e.ok()) {
+            if !e.file_type().is_file() {
+                continue;
+            }
+            let rel = e.path().strip_prefix(p).map_err(es)?;
+            let dest = out.join(rel);
+            if let Some(par) = dest.parent() {
+                std::fs::create_dir_all(par).map_err(es)?;
+            }
+            std::fs::copy(e.path(), &dest).map_err(es)?;
+        }
+    } else {
+        return Err("اختر ملف zip أو مجلداً يحتوي على llama-server.exe".to_string());
+    }
+    find_server()
+        .map(|p| p.to_string_lossy().to_string())
+        .ok_or_else(|| "لم يُعثر على llama-server.exe داخل ما اخترت".to_string())
 }
 
 #[tauri::command]
@@ -292,7 +373,8 @@ pub async fn agent_start(state: State<'_, AppState>) -> Result<(), String> {
             }
         }
         if !already {
-            let exe = find_server().ok_or_else(|| "خادم الذكاء الاصطناعي غير مثبّت بعد".to_string())?;
+            let exe =
+                find_server().ok_or_else(|| "خادم الذكاء الاصطناعي غير مثبّت بعد".to_string())?;
             let model = load_config()
                 .model_path
                 .ok_or_else(|| "لم يتم اختيار نموذج".to_string())?;
@@ -307,7 +389,7 @@ pub async fn agent_start(state: State<'_, AppState>) -> Result<(), String> {
                 .arg("--port")
                 .arg(PORT.to_string())
                 .arg("-c")
-                .arg("8192")
+                .arg("16384")
                 .arg("--jinja");
             if let Some(dir) = exe.parent() {
                 cmd.current_dir(dir);
@@ -377,9 +459,15 @@ fn describe(f: &Finding) -> String {
         f.id,
         f.name,
         f.category,
-        if f.risk == "safe" { "كاش آمن" } else { "يحتاج مراجعة" },
+        if f.risk == "safe" {
+            "كاش آمن"
+        } else {
+            "يحتاج مراجعة"
+        },
         f.size / (1024 * 1024),
-        f.age_days.map(|d| d.to_string()).unwrap_or_else(|| "?".to_string()),
+        f.age_days
+            .map(|d| d.to_string())
+            .unwrap_or_else(|| "?".to_string()),
         f.path
     )
 }

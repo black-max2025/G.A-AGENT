@@ -76,7 +76,12 @@ fn system_roots() -> Vec<String> {
     }
     if let Ok(sd) = std::env::var("SystemDrive") {
         let base = PathBuf::from(format!("{}\\", sd));
-        for d in ["$Recycle.Bin", "System Volume Information", "Recovery", "Boot"] {
+        for d in [
+            "$Recycle.Bin",
+            "System Volume Information",
+            "Recovery",
+            "Boot",
+        ] {
             v.push(norm(&base.join(d)));
         }
     }
@@ -147,4 +152,27 @@ pub fn is_owned_by(owned: &[String], path: &Path) -> bool {
 
 pub fn is_app_owned(path: &Path) -> bool {
     is_owned_by(&owned_paths(), path)
+}
+
+/// True for places a file-organizing or download tool must never touch.
+pub fn is_system_location(path: &Path) -> bool {
+    let p = norm(path);
+    if p.len() <= 3 {
+        return true;
+    }
+    if is_app_owned(path) {
+        return true;
+    }
+    if let Some(up) = user_profile() {
+        let u = norm(&up);
+        if p == u || p == format!("{}\\appdata", u) || p.starts_with(&format!("{}\\appdata\\", u)) {
+            return true;
+        }
+    }
+    for r in system_roots() {
+        if p == r || p.starts_with(&format!("{}\\", r)) {
+            return true;
+        }
+    }
+    p.contains("\\system32") || p.contains("\\winsxs")
 }
