@@ -546,6 +546,23 @@ async function loadMemory() {
     });
   } catch (e) { box.textContent = "خطأ: " + e; }
 }
+async function loadMail() {
+  try {
+    const a = await invoke("email_status");
+    $("mailStatus").textContent = a ? "✅ مربوط: " + a : "غير مربوط (الوكيل أوفلاين)";
+  } catch (e) { $("mailStatus").textContent = "خطأ: " + e; }
+}
+$("btnMailConnect").onclick = (ev) => withBusy(ev.currentTarget, async () => {
+  try {
+    await invoke("email_connect", { address: $("mailAddr").value.trim(), password: $("mailPw").value });
+    $("mailPw").value = ""; toast("تم ربط الحساب وحُفظت كلمة السر في خزنة Windows");
+  } catch (e) { toast("خطأ: " + e, 9000); }
+  loadMail();
+});
+$("btnMailOff").onclick = async () => {
+  try { await invoke("email_disconnect"); $("mailPw").value = ""; toast("تم فصل الحساب وحذف كلمة السر"); } catch (e) { toast("خطأ: " + e); }
+  loadMail();
+};
 async function loadDomains() {
   const s = await invoke("agent_status");
   document.querySelectorAll("[data-domain]").forEach((c) => (c.checked = !s.disabled_domains.includes(c.dataset.domain)));
@@ -555,7 +572,7 @@ document.querySelectorAll("[data-domain]").forEach((c) => (c.onchange = async ()
 }));
 $("btnTasksRefresh").onclick = loadTasks;
 $("btnMemRefresh").onclick = loadMemory;
-document.querySelector('[data-tab="tasks"]').addEventListener("click", () => { loadTasks(); loadMemory(); loadDomains(); });
+document.querySelector('[data-tab="tasks"]').addEventListener("click", () => { loadTasks(); loadMemory(); loadDomains(); loadMail(); });
 listen("task-ran", (ev) => { toast("⏰ " + ev.payload.title + ": " + ev.payload.result, 9000); loadTasks(); });
 
 loadDrives();

@@ -4,6 +4,7 @@ mod agent;
 mod assistant;
 mod assistant_ext;
 mod cleaner;
+mod email;
 mod files;
 mod overview;
 mod rules;
@@ -249,7 +250,10 @@ fn main() {
             assistant_ext::memory_forget,
             assistant_ext::agent_set_domain,
             assistant_ext::tasks_list,
-            assistant_ext::task_remove
+            assistant_ext::task_remove,
+            email::email_connect,
+            email::email_disconnect,
+            email::email_status
         ])
         .build(tauri::generate_context!())
         .expect("error while building G.A AGENT");
