@@ -10,9 +10,7 @@ fn es<E: ToString>(e: E) -> String {
 }
 
 pub fn current_time() -> String {
-    ps_raw("Get-Date -Format 'yyyy-MM-dd HH:mm dddd'")
-        .trim()
-        .to_string()
+    crate::timeutil::describe_now(&crate::agent::load_config().lang())
 }
 
 pub fn time_after(minutes: u64) -> String {

@@ -4,9 +4,12 @@ mod agent;
 mod assistant;
 mod assistant_ext;
 mod cleaner;
+mod dedupe;
 mod email;
 mod files;
+mod inbox;
 mod overview;
+mod perf;
 mod rules;
 mod safety;
 mod scanner;
@@ -15,6 +18,10 @@ mod shrink;
 mod store;
 mod sysinfo;
 mod sysops;
+mod telegram;
+mod timeutil;
+mod vault;
+mod web;
 
 use serde::Serialize;
 use std::collections::HashMap;
@@ -208,6 +215,14 @@ async fn journal_undo(id: String) -> Result<shrink::JournalEntry, String> {
 }
 
 fn main() {
+    // Started by the Windows Task Scheduler: run one task without any window.
+    let args: Vec<String> = std::env::args().collect();
+    if let Some(i) = args.iter().position(|a| a == "--task") {
+        if let Some(id) = args.get(i + 1) {
+            scheduler::run_headless(id);
+        }
+        return;
+    }
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(AppState {
@@ -217,8 +232,12 @@ fn main() {
             session: Mutex::new(assistant::Session::default()),
         })
         .setup(|app| {
-            let h = app.handle().clone();
-            tauri::async_runtime::spawn(scheduler::run_loop(h));
+            perf::lower_own_priority();
+            let _ = rayon::ThreadPoolBuilder::new()
+                .num_threads(perf::scan_threads())
+                .build_global();
+            agent::spawn_idle_watcher(app.handle().clone());
+            telegram::autostart(app.handle().clone());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -241,6 +260,22 @@ fn main() {
             agent::agent_set_allow_commands,
             agent::agent_start,
             agent::agent_stop,
+            dedupe::dedupe_scan,
+            dedupe::dedupe_apply,
+            vault::vault_size,
+            inbox::inbox_list,
+            inbox::inbox_add_manual,
+            inbox::inbox_dismiss,
+            inbox::inbox_draft,
+            inbox::inbox_send,
+            inbox::whatsapp_compose,
+            telegram::tg_connect,
+            telegram::tg_disconnect,
+            telegram::tg_pair_code,
+            telegram::tg_unpair,
+            telegram::tg_status,
+            agent::agent_set_perf,
+            agent::agent_set_lang,
             agent::agent_analyze,
             assistant::agent_send,
             assistant::agent_confirm,
@@ -251,6 +286,9 @@ fn main() {
             assistant_ext::agent_set_domain,
             assistant_ext::tasks_list,
             assistant_ext::task_remove,
+            scheduler::task_run_now,
+            scheduler::task_add,
+            scheduler::tasks_unseen,
             email::email_connect,
             email::email_disconnect,
             email::email_status

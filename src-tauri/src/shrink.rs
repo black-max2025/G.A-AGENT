@@ -23,7 +23,7 @@ fn es<E: ToString>(e: E) -> String {
     e.to_string()
 }
 
-fn now() -> u64 {
+pub(crate) fn now() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_secs())
@@ -81,20 +81,20 @@ pub fn read_journal() -> Vec<JournalEntry> {
         .unwrap_or_default()
 }
 
-fn write_journal(v: &[JournalEntry]) {
+pub(crate) fn write_journal(v: &[JournalEntry]) {
     let _ = fs::create_dir_all(crate::agent::base_dir());
     if let Ok(s) = serde_json::to_string_pretty(v) {
         let _ = fs::write(journal_path(), s);
     }
 }
 
-fn add_journal(e: JournalEntry) {
+pub(crate) fn add_journal(e: JournalEntry) {
     let mut v = read_journal();
     v.push(e);
     write_journal(&v);
 }
 
-fn new_id() -> String {
+pub(crate) fn new_id() -> String {
     format!("j{}-{}", now(), NONCE.fetch_add(1, Ordering::SeqCst))
 }
 
@@ -268,7 +268,7 @@ pub fn physical_dir(dir: &Path) -> u64 {
     t
 }
 
-fn contains_reparse(dir: &Path) -> bool {
+pub(crate) fn contains_reparse(dir: &Path) -> bool {
     for e in WalkDir::new(dir)
         .follow_links(false)
         .into_iter()
@@ -515,6 +515,7 @@ fn shrink_one(c: &Candidate) -> Result<JournalEntry, String> {
 
 // -------------------------------------------------------------------- freeze
 
+#[allow(dead_code)]
 fn build_zip(dir: &Path, archive: &Path) -> Result<(u64, u64), String> {
     let f = fs::File::create(archive).map_err(es)?;
     let mut zw = zip::ZipWriter::new(f);
@@ -548,6 +549,7 @@ fn build_zip(dir: &Path, archive: &Path) -> Result<(u64, u64), String> {
     Ok((files, bytes))
 }
 
+#[allow(dead_code)]
 fn verify_zip(archive: &Path, expected_files: u64, expected_bytes: u64) -> Result<(), String> {
     let f = fs::File::open(archive).map_err(es)?;
     let mut ar = zip::ZipArchive::new(f).map_err(es)?;
@@ -571,49 +573,77 @@ fn verify_zip(archive: &Path, expected_files: u64, expected_bytes: u64) -> Resul
 fn freeze_one(c: &Candidate) -> Result<JournalEntry, String> {
     let dir = &c.target;
     if !dir.is_dir() || safety::is_protected(dir) {
-        return Err("مسار غير مسموح".to_string());
-    }
-    let parent = dir.parent().ok_or_else(|| "لا يوجد مجلد أب".to_string())?;
-    let name = dir
-        .file_name()
-        .map(|n| n.to_string_lossy().to_string())
-        .unwrap_or_default();
-    let archive = parent.join(format!("{}.ga-frozen.zip", name));
-    if archive.exists() {
-        return Err("يوجد أرشيف بنفس الاسم مسبقاً".to_string());
+        return Err("ERR_PATH_NOT_ALLOWED".to_string());
     }
     if contains_reparse(dir) {
-        return Err("المجلد يحتوي روابط خاصة أو ملفات سحابية؛ لن أجمّده".to_string());
+        return Err("ERR_SPECIAL_LINKS".to_string());
     }
-    let before = dir_stats(dir).0;
-    let (files, bytes) = match build_zip(dir, &archive) {
-        Ok(x) => x,
-        Err(e) => {
-            let _ = fs::remove_file(&archive);
-            return Err(e);
-        }
-    };
-    if let Err(e) = verify_zip(&archive, files, bytes) {
-        let _ = fs::remove_file(&archive);
-        return Err(e);
-    }
-    purge_dir(dir);
-    let leftover = if dir.exists() { dir_stats(dir).0 } else { 0 };
-    let arch_size = fs::metadata(&archive).map(|m| m.len()).unwrap_or(0);
+    let out = crate::vault::freeze(dir)?;
     let entry = JournalEntry {
         id: new_id(),
-        kind: "freeze".to_string(),
+        kind: "vault".to_string(),
         app: c.app.clone(),
         path: c.path.clone(),
-        archive: Some(archive.to_string_lossy().to_string()),
-        before,
-        after: arch_size + leftover,
+        archive: Some(out.id),
+        before: out.before,
+        after: out.added,
         time: now(),
         moves: None,
         undone: false,
     };
     add_journal(entry.clone());
     Ok(entry)
+}
+
+/// Journal for hard-link de-duplication: moves = (kept file, file that became a link to it).
+pub fn journal_dedupe(root: &str, links: Vec<(String, String)>, saved: u64) -> String {
+    let id = new_id();
+    add_journal(JournalEntry {
+        id: id.clone(),
+        kind: "dedupe".to_string(),
+        app: "dedupe".to_string(),
+        path: root.to_string(),
+        archive: None,
+        moves: Some(links),
+        before: saved,
+        after: 0,
+        time: now(),
+        undone: false,
+    });
+    id
+}
+
+fn undo_dedupe(e: &JournalEntry) -> Result<(), String> {
+    let links = e
+        .moves
+        .as_ref()
+        .ok_or_else(|| "ERR_NO_RECORD".to_string())?;
+    let mut done = 0usize;
+    for (keeper, other) in links {
+        let (k, o) = (Path::new(keeper), Path::new(other));
+        if !k.is_file() || !o.is_file() {
+            continue;
+        }
+        let tmp = PathBuf::from(format!("{}.ga-unlink", other));
+        if fs::copy(k, &tmp).is_err() {
+            let _ = fs::remove_file(&tmp);
+            continue;
+        }
+        if let Ok(m) = fs::metadata(k).and_then(|m| m.modified()) {
+            if let Ok(f) = fs::OpenOptions::new().write(true).open(&tmp) {
+                let _ = f.set_modified(m);
+            }
+        }
+        if fs::rename(&tmp, o).is_ok() {
+            done += 1;
+        } else {
+            let _ = fs::remove_file(&tmp);
+        }
+    }
+    if done == 0 {
+        return Err("ERR_UNDO_NOTHING".to_string());
+    }
+    Ok(())
 }
 
 fn restore(e: &JournalEntry) -> Result<(), String> {
@@ -709,6 +739,11 @@ pub fn undo(id: &str) -> Result<JournalEntry, String> {
     let entry = all[idx].clone();
     if entry.kind == "move" {
         undo_moves(&entry)?;
+    } else if entry.kind == "dedupe" {
+        undo_dedupe(&entry)?;
+    } else if entry.kind == "vault" {
+        let id = entry.archive.clone().unwrap_or_default();
+        crate::vault::restore(&id, Path::new(&entry.path))?;
     } else if entry.kind == "freeze" {
         restore(&entry)?;
     } else {

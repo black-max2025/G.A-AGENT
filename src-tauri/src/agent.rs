@@ -8,15 +8,39 @@ use serde::{Deserialize, Serialize};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Mutex;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, State};
 use walkdir::WalkDir;
 
-pub const PORT: u16 = 18765;
+/// Random port + secret token per run, so no other program can use the engine.
+static RT: Mutex<(u16, String)> = Mutex::new((0, String::new()));
+static LAST_USED: AtomicU64 = AtomicU64::new(0);
+
+pub fn endpoint() -> (u16, String) {
+    match RT.lock() {
+        Ok(g) => g.clone(),
+        Err(_) => (0, String::new()),
+    }
+}
+
+pub fn touch() {
+    let t = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    LAST_USED.store(t, Ordering::Relaxed);
+}
+
+pub fn url(path: &str) -> String {
+    format!("http://127.0.0.1:{}{}", endpoint().0, path)
+}
 
 #[derive(Default)]
 pub struct AgentProc {
     pub child: Option<Child>,
+    pub job: Option<crate::perf::Job>,
 }
 
 pub fn es<E: ToString>(e: E) -> String {
@@ -60,6 +84,34 @@ pub struct Config {
     pub allow_commands: bool,
     #[serde(default)]
     pub disabled_domains: Vec<String>,
+    #[serde(default)]
+    pub cpu_cap: Option<u32>,
+    #[serde(default)]
+    pub threads: Option<u32>,
+    #[serde(default)]
+    pub ctx: Option<u32>,
+    #[serde(default)]
+    pub idle_secs: Option<u64>,
+    #[serde(default)]
+    pub lang: Option<String>,
+}
+
+impl Config {
+    pub fn cap(&self) -> u32 {
+        self.cpu_cap.unwrap_or(60).clamp(10, 100)
+    }
+    pub fn threads(&self) -> u32 {
+        self.threads.unwrap_or(2).clamp(1, 8)
+    }
+    pub fn ctx(&self) -> u32 {
+        self.ctx.unwrap_or(4096).clamp(2048, 16384)
+    }
+    pub fn idle(&self) -> u64 {
+        self.idle_secs.unwrap_or(300).clamp(60, 7200)
+    }
+    pub fn lang(&self) -> String {
+        self.lang.clone().unwrap_or_else(|| "ar".to_string())
+    }
 }
 
 pub fn load_config() -> Config {
@@ -102,6 +154,11 @@ pub struct AgentStatus {
     pub model_exists: bool,
     pub running: bool,
     pub downloaded_models: Vec<String>,
+    pub cpu_cap: u32,
+    pub threads: u32,
+    pub ctx: u32,
+    pub idle_secs: u64,
+    pub lang: String,
 }
 
 #[tauri::command]
@@ -133,10 +190,15 @@ pub fn agent_status(state: State<'_, AppState>) -> AgentStatus {
         allow_commands: cfg.allow_commands,
         disabled_domains: cfg.disabled_domains.clone(),
         server_installed: find_server().is_some(),
-        model_path: cfg.model_path,
+        model_path: cfg.model_path.clone(),
         model_exists,
         running,
         downloaded_models: downloaded,
+        cpu_cap: cfg.cap(),
+        threads: cfg.threads(),
+        ctx: cfg.ctx(),
+        idle_secs: cfg.idle(),
+        lang: cfg.lang(),
     }
 }
 
@@ -355,8 +417,16 @@ pub fn agent_set_model(path: String) -> Result<(), String> {
 }
 
 pub fn local_client(timeout_secs: u64) -> Result<reqwest::Client, String> {
+    let mut h = reqwest::header::HeaderMap::new();
+    let tok = endpoint().1;
+    if !tok.is_empty() {
+        if let Ok(v) = reqwest::header::HeaderValue::from_str(&format!("Bearer {}", tok)) {
+            h.insert(reqwest::header::AUTHORIZATION, v);
+        }
+    }
     reqwest::Client::builder()
         .no_proxy()
+        .default_headers(h)
         .timeout(Duration::from_secs(timeout_secs))
         .build()
         .map_err(es)
@@ -364,6 +434,12 @@ pub fn local_client(timeout_secs: u64) -> Result<reqwest::Client, String> {
 
 #[tauri::command]
 pub async fn agent_start(state: State<'_, AppState>) -> Result<(), String> {
+    ensure_running(&state).await
+}
+
+/// Starts the engine if it is not running (also used automatically before every chat).
+pub async fn ensure_running(state: &AppState) -> Result<(), String> {
+    touch();
     {
         let mut g = state.agent.lock().map_err(es)?;
         let mut already = false;
@@ -373,23 +449,50 @@ pub async fn agent_start(state: State<'_, AppState>) -> Result<(), String> {
             }
         }
         if !already {
-            let exe =
-                find_server().ok_or_else(|| "خادم الذكاء الاصطناعي غير مثبّت بعد".to_string())?;
-            let model = load_config()
+            let cfg = load_config();
+            let exe = find_server().ok_or_else(|| "ERR_NO_ENGINE".to_string())?;
+            let model = cfg
                 .model_path
-                .ok_or_else(|| "لم يتم اختيار نموذج".to_string())?;
+                .clone()
+                .ok_or_else(|| "ERR_NO_MODEL".to_string())?;
             if !Path::new(&model).exists() {
-                return Err("ملف النموذج غير موجود".to_string());
+                return Err("ERR_MODEL_MISSING".to_string());
             }
+            let port = std::net::TcpListener::bind("127.0.0.1:0")
+                .map_err(es)?
+                .local_addr()
+                .map_err(es)?
+                .port();
+            let token: String = {
+                use rand::{distributions::Alphanumeric, Rng};
+                rand::thread_rng()
+                    .sample_iter(&Alphanumeric)
+                    .take(40)
+                    .map(char::from)
+                    .collect()
+            };
+            let threads = cfg.threads().to_string();
             let mut cmd = Command::new(&exe);
             cmd.arg("-m")
                 .arg(&model)
                 .arg("--host")
                 .arg("127.0.0.1")
                 .arg("--port")
-                .arg(PORT.to_string())
+                .arg(port.to_string())
+                .arg("--api-key")
+                .arg(&token)
                 .arg("-c")
-                .arg("16384")
+                .arg(cfg.ctx().to_string())
+                .arg("-t")
+                .arg(&threads)
+                .arg("-tb")
+                .arg(&threads)
+                .arg("-np")
+                .arg("1")
+                .arg("-b")
+                .arg("256")
+                .arg("-ub")
+                .arg("128")
                 .arg("--jinja");
             if let Some(dir) = exe.parent() {
                 cmd.current_dir(dir);
@@ -398,23 +501,74 @@ pub async fn agent_start(state: State<'_, AppState>) -> Result<(), String> {
             #[cfg(windows)]
             {
                 use std::os::windows::process::CommandExt;
-                cmd.creation_flags(0x0800_0000);
+                cmd.creation_flags(0x0800_0000 | 0x0000_4000);
             }
             let child = cmd.spawn().map_err(es)?;
+            g.job = crate::perf::cap_child(&child, cfg.cap()).ok();
             g.child = Some(child);
+            if let Ok(mut r) = RT.lock() {
+                *r = (port, token);
+            }
         }
     }
     let client = local_client(5)?;
-    let url = format!("http://127.0.0.1:{}/health", PORT);
-    for _ in 0..360 {
+    let url = url("/health");
+    for _ in 0..480 {
         if let Ok(r) = client.get(&url).send().await {
             if r.status().is_success() {
+                touch();
                 return Ok(());
             }
         }
         tokio::time::sleep(Duration::from_millis(500)).await;
     }
-    Err("انتهت مهلة تحميل النموذج. جرّب نموذجاً أصغر.".to_string())
+    Err("ERR_LOAD_TIMEOUT".to_string())
+}
+
+/// Unloads the engine after a period without use, freeing RAM and CPU.
+pub fn spawn_idle_watcher(app: AppHandle) {
+    std::thread::spawn(move || loop {
+        std::thread::sleep(Duration::from_secs(30));
+        let idle = load_config().idle();
+        let last = LAST_USED.load(Ordering::Relaxed);
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        if last > 0 && now.saturating_sub(last) > idle {
+            use tauri::Manager;
+            if let Some(st) = app.try_state::<AppState>() {
+                if let Ok(mut g) = st.agent.lock() {
+                    if let Some(mut c) = g.child.take() {
+                        let _ = c.kill();
+                        let _ = c.wait();
+                    }
+                    g.job = None;
+                }
+            }
+            LAST_USED.store(0, Ordering::Relaxed);
+        }
+    });
+}
+
+#[tauri::command]
+pub fn agent_set_perf(cpu_cap: u32, threads: u32, ctx: u32, idle_secs: u64) -> Result<(), String> {
+    let mut c = load_config();
+    c.cpu_cap = Some(cpu_cap.clamp(10, 100));
+    c.threads = Some(threads.clamp(1, 8));
+    c.ctx = Some(ctx.clamp(2048, 16384));
+    c.idle_secs = Some(idle_secs.clamp(60, 7200));
+    save_config(&c)
+}
+
+#[tauri::command]
+pub fn agent_set_lang(lang: String) -> Result<(), String> {
+    if !["ar", "en", "id", "fr", "it"].contains(&lang.as_str()) {
+        return Err("lang".to_string());
+    }
+    let mut c = load_config();
+    c.lang = Some(lang);
+    save_config(&c)
 }
 
 #[tauri::command]
@@ -424,10 +578,12 @@ pub fn agent_stop(state: State<'_, AppState>) -> Result<(), String> {
         let _ = c.kill();
         let _ = c.wait();
     }
+    g.job = None;
     Ok(())
 }
 
-async fn complete(system: &str, user: &str, max_tokens: u32) -> Result<String, String> {
+pub async fn complete(system: &str, user: &str, max_tokens: u32) -> Result<String, String> {
+    touch();
     let client = local_client(900)?;
     let body = serde_json::json!({
         "messages": [
@@ -439,7 +595,7 @@ async fn complete(system: &str, user: &str, max_tokens: u32) -> Result<String, S
         "chat_template_kwargs": { "enable_thinking": false }
     });
     let v: serde_json::Value = client
-        .post(format!("http://127.0.0.1:{}/v1/chat/completions", PORT))
+        .post(url("/v1/chat/completions"))
         .json(&body)
         .send()
         .await

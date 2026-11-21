@@ -2,225 +2,272 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>G.A AGENT</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header>
-  <div class="brand"><span class="logo">GA</span><div><h1>G.A AGENT</h1><small>وكيل ذكي لجهازك — يوفّر المساحة بأمان ويمكنك التراجع دائماً</small></div></div>
-  <nav id="tabs">
-    <button data-tab="start" class="active">ابدأ</button>
-    <button data-tab="assistant">المساعد</button>
-    <button data-tab="log">السجل</button>
-    <button data-tab="tasks">المهام</button>
-    <button data-tab="clean">تنظيف متقدم</button>
-    <button data-tab="folders">الفولدرات</button>
-    <button data-tab="brain">العقل</button>
-    <button data-tab="safety">الأمان</button>
-  </nav>
-</header>
+<div id="app">
+  <aside id="side">
+    <div class="brand">
+      <svg class="logo" viewBox="0 0 48 48" aria-hidden="true">
+        <defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5eead4"/><stop offset="1" stop-color="#6366f1"/></linearGradient></defs>
+        <path d="M24 3l18 10.5v21L24 45 6 34.500v-21z" fill="url(#lg)"/>
+        <path d="M31 19a9 9 0 1 0 1 8h-8" fill="none" stroke="#0b1226" stroke-width="3.500" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="33.500" cy="14.500" r="2.200" fill="#0b1226"/>
+      </svg>
+      <div><b>G.A AGENT</b><small data-i18n="tagline"></small></div>
+    </div>
+    <nav id="tabs">
+      <button data-tab="home" class="active"><i>⌂</i><span data-i18n="nav_home"></span></button>
+      <button data-tab="chat"><i>✦</i><span data-i18n="nav_chat"></span></button>
+      <button data-tab="space"><i>◧</i><span data-i18n="nav_space"></span></button>
+      <button data-tab="tasks"><i>◷</i><span data-i18n="nav_tasks"></span><em id="taskBadge" hidden></em></button>
+      <button data-tab="accounts"><i>✉</i><span data-i18n="nav_accounts"></span><em id="inboxBadge" hidden></em></button>
+      <button data-tab="journal"><i>↶</i><span data-i18n="nav_journal"></span></button>
+      <button data-tab="settings"><i>⚙</i><span data-i18n="nav_settings"></span></button>
+    </nav>
+    <div class="side-foot">
+      <div id="brainPill" class="pill off"><span class="dot"></span><span id="brainPillText"></span></div>
+      <select id="langSel" aria-label="Language">
+        <option value="ar">العربية</option>
+        <option value="en">English</option>
+        <option value="id">Bahasa Indonesia</option>
+        <option value="fr">Français</option>
+        <option value="it">Italiano</option>
+      </select>
+    </div>
+  </aside>
 
-<main>
-<!-- ================= START ================= -->
-<section id="tab-start" class="tab active">
-  <div class="card"><div id="driveStrip"></div></div>
-  <div class="card center">
-    <h2>وفّر مساحة جهازك بضغطة واحدة</h2>
-    <p class="muted">سأفحص جهازك وأعطيك خطة واضحة بالأرقام. لن يُحذف أو يُغيَّر شيء قبل موافقتك، وكل تصغير يمكن التراجع عنه.</p>
-    <button id="btnPlan" class="primary big">افحص جهازي وأعطني خطة</button>
-    <div id="planStatus" class="muted"></div>
-  </div>
-
-  <div id="planCard" hidden>
-    <div class="card sticky">
-      <div class="row">
-        <strong id="planTotal"></strong>
-        <span class="sep"></span>
-        <button id="btnRun" class="primary">نفّذ الخطة المحددة</button>
+  <main>
+    <!-- HOME -->
+    <section class="tab active" id="tab-home">
+      <h1 data-i18n="home_title"></h1>
+      <p class="lead" data-i18n="home_sub"></p>
+      <div id="driveStrip" class="card"></div>
+      <div class="card">
+        <button id="btnPlan" class="primary big" data-i18n="btn_scan"></button>
+        <div id="planStatus" class="muted"></div>
       </div>
-    </div>
-    <div id="planSections"></div>
-  </div>
-  <div class="card" id="runResult" hidden></div>
-</section>
+      <div id="planCard" hidden>
+        <div id="planSections"></div>
+        <div class="card sticky">
+          <b id="planTotal"></b>
+          <button id="btnRun" class="primary" data-i18n="btn_run"></button>
+        </div>
+      </div>
+      <div id="runResult" class="card ok" hidden></div>
+    </section>
 
-<!-- ================= ASSISTANT ================= -->
-<section id="tab-assistant" class="tab">
-  <div class="card">
-    <div class="row"><h3 class="grow">تحدّث مع الوكيل</h3><button id="btnResetChat">محادثة جديدة</button></div>
-    <div class="muted">اطلب بالعربية ما تريد: «وين راحت مساحتي؟»، «نظّف الكاش»، «صغّر البرامج الكبيرة»، «ابحث عن ملف كذا». أي إجراء يغيّر شيئاً سيطلب موافقتك أولاً.</div>
-    <div id="planBox" class="card" hidden></div>
-    <div id="chat"></div>
-    <div class="row"><input id="chatIn" class="grow" placeholder="اكتب طلبك هنا..."><button id="btnSend" class="primary">إرسال</button></div>
-  </div>
-</section>
+    <!-- CHAT -->
+    <section class="tab" id="tab-chat">
+      <div class="row between"><h1 data-i18n="chat_title"></h1><button id="btnResetChat" data-i18n="chat_new"></button></div>
+      <div id="planBox" class="card" hidden></div>
+      <div id="chat" class="chat"></div>
+      <div class="chatbar">
+        <input id="chatIn" data-i18n-ph="chat_ph" autocomplete="off">
+        <button id="btnSend" class="primary" data-i18n="send"></button>
+      </div>
+      <div class="chips" id="suggest"></div>
+    </section>
 
-<!-- ================= TASKS ================= -->
-<section id="tab-tasks" class="tab">
-  <div class="card">
-    <div class="row"><h3 class="grow">المهام المجدولة</h3><button id="btnTasksRefresh">تحديث</button></div>
-    <div class="muted">اطلب من الوكيل مثلاً: «نظّف الكاش كل أسبوع» أو «ذكّرني بعد ساعة». تعمل المهام ما دام التطبيق مفتوحاً، وما فاتها تعمل مرة واحدة عند فتح التطبيق.</div>
-    <div id="taskList"></div>
-  </div>
-  <div class="card">
-    <div class="row"><h3 class="grow">ما يتذكره الوكيل عنك</h3><button id="btnMemRefresh">تحديث</button></div>
-    <div class="muted">معلومات تفضيلات فقط، محفوظة على جهازك. لا تُحفظ كلمات السر أبداً.</div>
-    <div id="memList"></div>
-  </div>
-  <div class="card">
-    <h3>حساب Gmail (اختياري)</h3>
-    <div class="muted">بدون ربط حساب يبقى الوكيل أوفلاين تماماً. عند الربط يتصل التطبيق بخوادم Gmail فقط (imap.gmail.com وsmtp.gmail.com) ولا شيء غيرها.
-      الوكيل يقرأ ويبحث في صندوق الوارد فقط، ولا يرسل أي رسالة إلا بعد أن ترى نصها كاملاً وتوافق. كلمة السر تُحفظ في خزنة Windows ولا يراها الوكيل.</div>
-    <div class="muted">كيف تحصل على «كلمة مرور التطبيق»: فعّل التحقق بخطوتين في حساب جوجل، ثم ابحث عن «App passwords» في إعدادات الحساب وأنشئ واحدة (16 حرفاً).</div>
-    <div id="mailStatus" class="muted"></div>
-    <div class="row wrap">
-      <input id="mailAddr" class="grow" placeholder="name@gmail.com" dir="ltr">
-      <input id="mailPw" class="grow" type="password" placeholder="كلمة مرور التطبيق" dir="ltr" autocomplete="off">
-      <button id="btnMailConnect" class="primary">ربط</button>
-      <button id="btnMailOff">فصل الحساب</button>
-    </div>
-  </div>
-  <div class="card">
-    <h3>مجالات الوكيل</h3>
-    <div class="muted">أوقف أي مجال لا تريد أن يعمل فيه الوكيل.</div>
-    <label class="chk"><input type="checkbox" data-domain="files"> الملفات والمستندات</label>
-    <label class="chk"><input type="checkbox" data-domain="programs"> البرامج والنظام</label>
-    <label class="chk"><input type="checkbox" data-domain="automation"> الأتمتة والجدولة والروابط</label>
-    <label class="chk"><input type="checkbox" data-domain="email"> البريد (يعمل فقط بعد ربط حساب)</label>
-    <div class="muted">لربط برنامج: ضع ملف .json داخل مجلد connectors في مكان ملفات العقل، ثم اطلب من الوكيل تشغيله؛ كل تشغيل يطلب موافقتك. لا يوجد أي اتصال بالإنترنت.</div>
-  </div>
-</section>
+    <!-- SPACE -->
+    <section class="tab" id="tab-space">
+      <h1 data-i18n="space_title"></h1>
+      <p class="lead" data-i18n="space_sub"></p>
 
-<!-- ================= LOG ================= -->
-<section id="tab-log" class="tab">
-  <div class="card">
-    <div class="row"><h3 class="grow">سجل العمليات</h3><button id="btnLogRefresh">تحديث</button></div>
-    <div class="muted">كل تصغير أو تجميد يظهر هنا ويمكنك التراجع عنه.</div>
-    <div id="logList"></div>
-  </div>
-</section>
+      <div class="card">
+        <h3 data-i18n="dd_title"></h3>
+        <p class="muted" data-i18n="dd_desc"></p>
+        <div class="row"><input id="ddPath" data-i18n-ph="path_ph"><button id="btnDdBrowse" data-i18n="browse"></button><button id="btnDdScan" class="primary" data-i18n="dd_scan"></button></div>
+        <div id="ddResult" class="muted"></div>
+        <button id="btnDdApply" class="primary" hidden data-i18n="dd_apply"></button>
+      </div>
 
-<!-- ================= ADVANCED CLEAN ================= -->
-<section id="tab-clean" class="tab">
-  <div class="card">
-    <div class="row">
-      <button id="btnQuick" class="primary">فحص سريع للنظام (كاش ومؤقتات)</button>
-      <span class="sep"></span>
-      <input id="deepPath" class="grow" placeholder="مسار لفحص عميق (مشاريع، مكررات، ملفات كبيرة...)">
-      <button id="btnBrowse">استعراض</button>
-      <button id="btnDeep">فحص عميق</button>
-    </div>
-    <div id="status" class="muted">اضغط «فحص سريع» للبدء. لن يُحذف شيء قبل موافقتك.</div>
-  </div>
-  <div class="card" id="resultCard" hidden>
-    <div class="row">
-      <strong id="summary"></strong>
-      <span class="sep"></span>
-      <button id="btnAi">اسأل العقل (AI)</button>
-      <button id="btnSelSafe">تحديد الآمن فقط</button>
-      <button id="btnSelNone">إلغاء التحديد</button>
-      <button id="btnClean" class="danger">نظّف المحدد</button>
-    </div>
-    <div id="list"></div>
-  </div>
-</section>
+      <div class="card">
+        <h3 data-i18n="vault_title"></h3>
+        <p class="muted" data-i18n="vault_desc"></p>
+        <div id="vaultInfo" class="muted"></div>
+      </div>
 
-<!-- ================= FOLDERS ================= -->
-<section id="tab-folders" class="tab">
-  <div class="card">
-    <div class="row">
-      <button id="btnUp">⬆ للأعلى</button>
-      <input id="ovPath" class="grow" placeholder="مسار المجلد">
-      <button id="btnOv" class="primary">تحليل</button>
-    </div>
-    <div class="muted">يعرض حجم كل مجلد ونوع بياناته الغالب. انقر مرتين على مجلد للدخول إليه.</div>
-  </div>
-  <div class="card"><div id="ovList"></div></div>
-</section>
+      <details class="card">
+        <summary data-i18n="adv_clean"></summary>
+        <div class="row"><button id="btnQuick" data-i18n="adv_quick"></button>
+          <input id="deepPath" data-i18n-ph="path_ph"><button id="btnBrowse" data-i18n="browse"></button><button id="btnDeep" data-i18n="adv_deep"></button></div>
+        <div id="status" class="muted"></div>
+        <div id="resultCard" hidden>
+          <div class="row"><button id="btnSelSafe" data-i18n="sel_safe"></button><button id="btnSelNone" data-i18n="sel_none"></button><button id="btnAi" data-i18n="ai_analyze"></button></div>
+          <div id="list"></div>
+          <div class="row between"><b id="summary"></b><button id="btnClean" class="primary" data-i18n="clean_sel"></button></div>
+        </div>
+      </details>
 
-<!-- ================= BRAIN ================= -->
-<section id="tab-brain" class="tab">
-  <div class="card">
-    <h3>حالة العقل</h3>
-    <div id="brainStatus" class="muted">...</div>
-    <div class="row wrap">
-      <button id="btnAuto" class="primary">تجهيز العقل تلقائياً (موصى به)</button>
-      <button id="btnStart">تشغيل</button>
-      <button id="btnStop">إيقاف</button>
-    </div>
-    <div id="dlProgress" class="muted"></div>
-    <div class="muted">كل ما يحتاجه العقل يُجهَّز تلقائياً: المحرك ثم النموذج ثم التشغيل. الإنترنت يُستخدم هنا فقط، مرة واحدة، لتنزيل المحرك والنموذج من مصادرهما الرسمية.</div>
-  </div>
+      <details class="card">
+        <summary data-i18n="ov_title"></summary>
+        <div class="row"><button id="btnUp">↑</button><input id="ovPath" dir="ltr"><button id="btnOv" data-i18n="ov_go"></button></div>
+        <div class="muted" data-i18n="ov_hint"></div>
+        <div id="ovList"></div>
+      </details>
+    </section>
 
-  <div class="card">
-    <h3>بدون إنترنت؟ استورد المحرك يدوياً</h3>
-    <div class="muted">نزّل ملف المحرك (llama.cpp لويندوز، ملف zip) من جهاز آخر، ثم اخترْه هنا. لا يحتاج التطبيق أي اتصال.</div>
-    <div class="row wrap">
-      <button id="btnImportZip">اختيار ملف المحرك (zip)</button>
-      <button id="btnImportDir">اختيار مجلد المحرك</button>
-    </div>
-  </div>
+    <!-- TASKS -->
+    <section class="tab" id="tab-tasks">
+      <h1 data-i18n="tasks_title"></h1>
+      <p class="lead" data-i18n="tasks_sub"></p>
+      <div class="card">
+        <div id="nowBox" class="now"></div>
+      </div>
+      <div class="card">
+        <h3 data-i18n="task_new"></h3>
+        <div class="grid2">
+          <label><span data-i18n="task_kind"></span>
+            <select id="tKind">
+              <option value="clean_safe" data-i18n="k_clean_safe"></option>
+              <option value="organize" data-i18n="k_organize"></option>
+              <option value="dedupe" data-i18n="k_dedupe"></option>
+              <option value="reminder" data-i18n="k_reminder"></option>
+            </select></label>
+          <label><span data-i18n="task_title"></span><input id="tTitle"></label>
+          <label id="tParamWrap"><span id="tParamLbl"></span><input id="tParam"></label>
+          <label><span data-i18n="task_when"></span><input id="tAt" type="datetime-local" dir="ltr"></label>
+          <label><span data-i18n="task_repeat"></span>
+            <select id="tRepeat">
+              <option value="0" data-i18n="r_once"></option>
+              <option value="24" data-i18n="r_daily"></option>
+              <option value="168" data-i18n="r_weekly"></option>
+            </select></label>
+        </div>
+        <button id="btnTaskAdd" class="primary" data-i18n="task_add"></button>
+      </div>
+      <div id="taskList"></div>
+      <div class="card">
+        <div class="row between"><h3 data-i18n="mem_title"></h3><button id="btnMemRefresh" data-i18n="refresh"></button></div>
+        <div id="memList"></div>
+      </div>
+    </section>
 
-  <div class="card">
-    <h3>أين تُحفظ ملفات العقل؟</h3>
-    <div class="muted">ملف النموذج كبير (حوالي 1.3GB). اختر قرصاً فيه مساحة وسيُحفظ هناك بدل القرص C. إن كان لديك نموذج جاهز فاستخدمه مكانه بدون نسخه.</div>
-    <div class="row">
-      <input id="dataDir" class="grow" placeholder="مثال: D:\GA-Models">
-      <button id="btnPickDir">استعراض</button>
-      <button id="btnSaveDir">حفظ المكان</button>
-    </div>
-    <div class="row wrap">
-      <button id="btnPickModel">استخدام ملف .gguf لدي (يبقى في مكانه)</button>
-    </div>
-  </div>
+    <!-- ACCOUNTS -->
+    <section class="tab" id="tab-accounts">
+      <h1 data-i18n="acc_title"></h1>
+      <p class="lead" data-i18n="acc_sub"></p>
 
-  <div class="card">
-    <h3>اختيار نموذج آخر</h3>
-    <div class="row wrap">
-      <button data-dl="q35">Qwen3.5 2B (الافتراضي، ~1.3GB)</button>
-      <button data-dl="1.5">Qwen2.5 1.5B (~1.1GB)</button>
-      <button data-dl="3">Qwen2.5 3B (~2.1GB)</button>
-    </div>
-    <div class="muted">النموذج استشاري فقط؛ طبقة الأمان لها الكلمة الأخيرة ولا يستطيع تجاوز القائمة المحمية.</div>
-  </div>
+      <div class="card">
+        <h3>Gmail</h3>
+        <p class="muted" data-i18n="gm_desc"></p>
+        <div id="mailStatus" class="status"></div>
+        <div class="grid2">
+          <label><span data-i18n="gm_addr"></span><input id="mailAddr" type="email" dir="ltr"></label>
+          <label><span data-i18n="gm_pw"></span><input id="mailPw" type="password" dir="ltr"></label>
+        </div>
+        <div class="row"><button id="btnMailConnect" class="primary" data-i18n="connect"></button><button id="btnMailOff" data-i18n="disconnect"></button></div>
+        <p class="muted small" data-i18n="gm_help"></p>
+      </div>
 
-  <div class="card">
-    <h3>إعدادات متقدمة</h3>
-    <label class="chk"><input type="checkbox" id="allowCmd"> السماح للوكيل بتشغيل أوامر PowerShell (كل أمر يطلب موافقتك ويُشرح بجملة بسيطة)</label>
-  </div>
-</section>
+      <div class="card">
+        <h3>Telegram</h3>
+        <p class="muted" data-i18n="tg_desc"></p>
+        <div id="tgStatus" class="status"></div>
+        <div class="grid2">
+          <label><span data-i18n="tg_token"></span><input id="tgToken" type="password" dir="ltr"></label>
+        </div>
+        <div class="row"><button id="btnTgConnect" class="primary" data-i18n="connect"></button><button id="btnTgPair" data-i18n="tg_pair"></button><button id="btnTgOff" data-i18n="disconnect"></button></div>
+        <div id="tgPair" class="code" hidden></div>
+        <p class="muted small" data-i18n="tg_help"></p>
+      </div>
 
-<!-- ================= SAFETY ================= -->
-<section id="tab-safety" class="tab">
-  <div class="card">
-    <h3>كيف يحميك التطبيق</h3>
-    <ul class="safe-list">
-      <li>الواجهة لا ترسل مسارات للحذف أبداً؛ تُرسل فقط معرّفات نتائج فحص أنتجها التطبيق نفسه.</li>
-      <li>قائمة محمية ثابتة: Windows وProgram Files وProgramData وAppData وجذر القرص والمجلدات الشخصية نفسها، وملف النموذج الذي اخترته.</li>
-      <li>التصغير يستخدم ضغط Windows الأصلي: الملفات تبقى مكانها وتعمل كما هي، والتراجع بضغطة.</li>
-      <li>التجميد يضغط المجلد القديم في ملف واحد ويتحقق منه ملفاً ملفاً قبل حذف الأصل، والاسترجاع بضغطة.</li>
-      <li>الكاش الآمن يُحذف نهائياً (يُعاد تلقائياً)، أما أي شيء آخر فيُنقل إلى <b>سلة المحذوفات</b>.</li>
-      <li>لا يتبع الروابط ولا الـ Junctions، ولا يقرأ ملفات OneDrive غير المحمّلة، ويتخطى الملفات قيد الاستخدام.</li>
-      <li><span class="offline">أوفلاين</span> الوكيل يعمل على جهازك: لا يملك أداة بحث أو تصفح في الإنترنت، ولا يتصل بأي طرف ثالث، ولا يرسل بياناتك لأي مكان. العقل يعمل على العنوان المحلي 127.0.0.1 فقط.</li>
-      <li>الاتصال الوحيد في التطبيق: (1) تنزيل المحرك أو النموذج عندما تضغط أنت زر التجهيز، من GitHub وHuggingFace فقط، ويمكن تجنّبه بالاستيراد اليدوي. (2) خوادم Gmail فقط، وفقط إن ربطت حسابك بنفسك.</li>
-      <li>البريد: قراءة وبحث فقط، وكل إرسال يعرض لك الرسالة كاملة ويحتاج موافقتك. نص الرسائل الواردة يُعامل كبيانات ولا يستطيع أمر الوكيل بشيء. حد أقصى 5 رسائل في الساعة، ومستلم واحد لكل رسالة، وسجل بكل ما أُرسل.</li>
-      <li>أي إجراء من الوكيل يغيّر شيئاً على جهازك يحتاج موافقتك.</li>
-    </ul>
-  </div>
-</section>
-</main>
+      <div class="card">
+        <h3>WhatsApp</h3>
+        <p class="muted" data-i18n="wa_desc"></p>
+        <div class="grid2">
+          <label><span data-i18n="wa_phone"></span><input id="waPhone" dir="ltr" placeholder="2010XXXXXXXX"></label>
+          <label><span data-i18n="wa_from"></span><input id="waFrom"></label>
+        </div>
+        <label><span data-i18n="wa_text"></span><textarea id="waText" rows="2"></textarea></label>
+        <div class="row"><button id="btnWaAdd" data-i18n="wa_add"></button><button id="btnWaOpen" class="primary" data-i18n="wa_open"></button></div>
+      </div>
 
-<div id="modal" class="modal" hidden>
-  <div class="mbox">
-    <h3>الوكيل يطلب موافقتك</h3>
-    <div id="mTool" class="badge b-ask"></div>
-    <pre id="mText"></pre>
-    <div class="row"><button id="mYes" class="primary">موافق</button><button id="mNo">لا، ألغِ</button></div>
-  </div>
+      <div class="card">
+        <div class="row between"><h3 data-i18n="inbox_title"></h3><button id="btnInboxRefresh" data-i18n="refresh"></button></div>
+        <p class="muted small" data-i18n="inbox_warn"></p>
+        <div id="inboxList"></div>
+      </div>
+    </section>
+
+    <!-- JOURNAL -->
+    <section class="tab" id="tab-journal">
+      <div class="row between"><h1 data-i18n="journal_title"></h1><button id="btnLogRefresh" data-i18n="refresh"></button></div>
+      <p class="lead" data-i18n="journal_sub"></p>
+      <div id="logList"></div>
+    </section>
+
+    <!-- SETTINGS -->
+    <section class="tab" id="tab-settings">
+      <h1 data-i18n="set_title"></h1>
+
+      <div class="card">
+        <h3 data-i18n="brain_title"></h3>
+        <div id="brainStatus" class="status"></div>
+        <div id="dlProgress" class="muted"></div>
+        <div class="row"><button id="btnAuto" class="primary" data-i18n="brain_auto"></button><button id="btnStop" data-i18n="brain_stop"></button></div>
+        <details><summary data-i18n="brain_more"></summary>
+          <div class="row"><button id="btnPickModel" data-i18n="brain_pick"></button>
+            <button id="btnImportZip" data-i18n="brain_zip"></button><button id="btnImportDir" data-i18n="brain_dir"></button></div>
+          <div class="row"><button data-dl="q35">Qwen3.5 2B</button><button data-dl="1.5">Qwen2.5 1.5B</button><button data-dl="3">Qwen2.5 3B</button></div>
+          <p class="muted small" data-i18n="brain_model_note"></p>
+        </details>
+      </div>
+
+      <div class="card">
+        <h3 data-i18n="perf_title"></h3>
+        <p class="muted" data-i18n="perf_desc"></p>
+        <div class="grid2">
+          <label><span data-i18n="perf_cap"></span> <b id="capV"></b><input id="pCap" type="range" min="20" max="100" step="5"></label>
+          <label><span data-i18n="perf_threads"></span> <b id="thrV"></b><input id="pThr" type="range" min="1" max="4" step="1"></label>
+          <label><span data-i18n="perf_ctx"></span><select id="pCtx"><option>2048</option><option>4096</option><option>8192</option></select></label>
+          <label><span data-i18n="perf_idle"></span><select id="pIdle"><option value="120">2</option><option value="300">5</option><option value="900">15</option><option value="3600">60</option></select></label>
+        </div>
+        <div class="row"><button id="btnPerfSave" class="primary" data-i18n="save"></button><button id="btnPerfLow" data-i18n="perf_low"></button></div>
+      </div>
+
+      <div class="card">
+        <h3 data-i18n="data_title"></h3>
+        <p class="muted" data-i18n="data_desc"></p>
+        <div class="row"><input id="dataDir" dir="ltr"><button id="btnPickDir" data-i18n="browse"></button><button id="btnSaveDir" class="primary" data-i18n="save"></button></div>
+      </div>
+
+      <div class="card">
+        <h3 data-i18n="perm_title"></h3>
+        <label class="chk"><input type="checkbox" data-domain="files"><span data-i18n="d_files"></span></label>
+        <label class="chk"><input type="checkbox" data-domain="programs"><span data-i18n="d_programs"></span></label>
+        <label class="chk"><input type="checkbox" data-domain="automation"><span data-i18n="d_automation"></span></label>
+        <label class="chk"><input type="checkbox" data-domain="email"><span data-i18n="d_email"></span></label>
+        <label class="chk"><input type="checkbox" data-domain="internet"><span data-i18n="d_internet"></span></label>
+        <label class="chk"><input type="checkbox" data-domain="chat"><span data-i18n="d_chat"></span></label>
+        <label class="chk"><input type="checkbox" id="allowCmd"><span data-i18n="d_cmd"></span></label>
+      </div>
+
+      <div class="card">
+        <h3 data-i18n="safe_title"></h3>
+        <ul id="safeList"></ul>
+      </div>
+    </section>
+  </main>
 </div>
 
+<div id="modal" class="modal" hidden>
+  <div class="box">
+    <h3 id="mTitle"></h3>
+    <div id="mText" class="mtext"></div>
+    <p class="muted small" data-i18n="confirm_hint"></p>
+    <div class="row end"><button id="mNo" data-i18n="confirm_no"></button><button id="mYes" class="primary" data-i18n="confirm_yes"></button></div>
+  </div>
+</div>
+<div id="dlg" class="modal" hidden>
+  <div class="box"><div id="dlgText" class="mtext"></div>
+    <div class="row end"><button id="dlgNo" data-i18n="cancel"></button><button id="dlgYes" class="primary" data-i18n="ok"></button></div></div>
+</div>
 <div id="toast"></div>
+<script src="i18n.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
