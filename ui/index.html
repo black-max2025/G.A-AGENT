@@ -18,6 +18,13 @@
       </svg>
       <div><b>G.A AGENT</b><small data-i18n="tagline"></small></div>
     </div>
+    <label class="langbox"><span>🌐</span><select id="langSel" aria-label="Language">
+        <option value="ar">العربية</option>
+        <option value="en">English</option>
+        <option value="id">Bahasa Indonesia</option>
+        <option value="fr">Français</option>
+        <option value="it">Italiano</option>
+      </select></label>
     <nav id="tabs">
       <button data-tab="home" class="active"><i>⌂</i><span data-i18n="nav_home"></span></button>
       <button data-tab="chat"><i>✦</i><span data-i18n="nav_chat"></span></button>
@@ -29,13 +36,6 @@
     </nav>
     <div class="side-foot">
       <div id="brainPill" class="pill off"><span class="dot"></span><span id="brainPillText"></span></div>
-      <select id="langSel" aria-label="Language">
-        <option value="ar">العربية</option>
-        <option value="en">English</option>
-        <option value="id">Bahasa Indonesia</option>
-        <option value="fr">Français</option>
-        <option value="it">Italiano</option>
-      </select>
     </div>
   </aside>
 
@@ -223,7 +223,7 @@
         <div class="grid2">
           <label><span data-i18n="perf_cap"></span> <b id="capV"></b><input id="pCap" type="range" min="20" max="100" step="5"></label>
           <label><span data-i18n="perf_threads"></span> <b id="thrV"></b><input id="pThr" type="range" min="1" max="4" step="1"></label>
-          <label><span data-i18n="perf_ctx"></span><select id="pCtx"><option>2048</option><option>4096</option><option>8192</option></select></label>
+          <label><span data-i18n="perf_ctx"></span><select id="pCtx"><option>6144</option><option>8192</option><option>12288</option></select></label>
           <label><span data-i18n="perf_idle"></span><select id="pIdle"><option value="120">2</option><option value="300">5</option><option value="900">15</option><option value="3600">60</option></select></label>
         </div>
         <div class="row"><button id="btnPerfSave" class="primary" data-i18n="save"></button><button id="btnPerfLow" data-i18n="perf_low"></button></div>

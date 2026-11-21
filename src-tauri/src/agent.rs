@@ -104,7 +104,7 @@ impl Config {
         self.threads.unwrap_or(2).clamp(1, 8)
     }
     pub fn ctx(&self) -> u32 {
-        self.ctx.unwrap_or(4096).clamp(2048, 16384)
+        self.ctx.unwrap_or(8192).clamp(6144, 16384)
     }
     pub fn idle(&self) -> u64 {
         self.idle_secs.unwrap_or(300).clamp(60, 7200)
@@ -556,7 +556,7 @@ pub fn agent_set_perf(cpu_cap: u32, threads: u32, ctx: u32, idle_secs: u64) -> R
     let mut c = load_config();
     c.cpu_cap = Some(cpu_cap.clamp(10, 100));
     c.threads = Some(threads.clamp(1, 8));
-    c.ctx = Some(ctx.clamp(2048, 16384));
+    c.ctx = Some(ctx.clamp(6144, 16384));
     c.idle_secs = Some(idle_secs.clamp(60, 7200));
     save_config(&c)
 }

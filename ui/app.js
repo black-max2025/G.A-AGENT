@@ -674,7 +674,7 @@ async function savePerf() {
   } catch (e) { fail(e); }
 }
 $("btnPerfSave").onclick = savePerf;
-$("btnPerfLow").onclick = () => { $("pCap").value = 50; $("pThr").value = 2; $("pCtx").value = "4096"; $("pIdle").value = "120"; updPerfLabels(); savePerf(); };
+$("btnPerfLow").onclick = () => { $("pCap").value = 50; $("pThr").value = 2; $("pCtx").value = "8192"; $("pIdle").value = "120"; updPerfLabels(); savePerf(); };
 listen("download-progress", (ev) => {
   const p = ev.payload;
   $("dlProgress").textContent = t("downloading", { l: p.label, a: fmt(p.got), b: p.total ? fmt(p.total) : "?", pct: p.total ? Math.round((p.got / p.total) * 100) + "%" : "" });
