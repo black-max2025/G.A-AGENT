@@ -101,6 +101,9 @@ pub struct Config {
     /// Strict Offline Mode (default ON): no network function may run.
     #[serde(default)]
     pub offline: Option<bool>,
+    /// Windows notifications (default ON).
+    #[serde(default)]
+    pub notify: Option<bool>,
 }
 
 impl Config {

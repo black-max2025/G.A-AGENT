@@ -200,6 +200,7 @@ async fn handle(app: &AppHandle, tok: &str, cfg: &mut Cfg, u: &Value) {
         }
     };
     inbox::add("telegram", &chat.to_string(), &from, text);
+    crate::notify::show_bg("message", &from);
     let _ = app.emit("inbox-new", json!({}));
 }
 

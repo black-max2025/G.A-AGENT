@@ -265,7 +265,7 @@ function showTurn(turn, holder) {
   }
   refreshPlan();
   holder.textContent = turn.text || (turn.pending ? t("needs_ok") : "…");
-  if (turn.pending) openModal(turn.pending);
+  if (turn.pending) { openModal(turn.pending); if (!document.hasFocus()) invoke("notify_event", { kind: "approval", detail: "" }).catch(() => {}); }
 }
 async function answer(approve) {
   $("modal").hidden = true; pendingOpen = false;
@@ -632,6 +632,7 @@ function offlineUi(on) {
   $("offBanner").hidden = !on;
   ["btnMailConnect", "btnTgConnect", "btnTgPair", "btnWaOpen"].forEach((i) => ($(i).disabled = !!on));
 }
+$("ntSw").onchange = async (e) => { try { await invoke("notify_set", { on: e.target.checked }); } catch (er) { fail(er); } };
 $("offSw").onchange = async (e) => {
   const on = e.target.checked;
   if (!on && !(await ask(t("off_confirm")))) { e.target.checked = true; return; }
@@ -668,6 +669,7 @@ async function refreshBrain() {
     $("allowCmd").checked = s.allow_commands;
     $("pBatch").value = String(s.batch); $("pUbatch").value = String(s.ubatch);
     $("offSw").checked = !!s.offline; offlineUi(s.offline);
+    invoke("notify_get").then((v) => { $("ntSw").checked = !!v; }).catch(() => {});
     $("cpuLine").textContent = t("cpu_line", { f: s.cpu_features || "?" }) + " — " + (s.engine_verified ? t("engine_ok") : t("engine_unverified"));
     $("pCap").value = s.cpu_cap; $("pThr").value = Math.min(4, s.threads); $("pCtx").value = String(s.ctx);
     const opt = [...$("pIdle").options].reduce((b, o) => (Math.abs(o.value - s.idle_secs) < Math.abs(b.value - s.idle_secs) ? o : b));

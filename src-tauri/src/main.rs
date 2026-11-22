@@ -13,6 +13,7 @@ mod email;
 mod files;
 mod inbox;
 mod netguard;
+mod notify;
 mod overview;
 mod perf;
 mod profiles;
@@ -263,6 +264,9 @@ fn main() {
             shrink_apply,
             journal_list,
             journal_undo,
+            notify::notify_get,
+            notify::notify_set,
+            notify::notify_event,
             agent::agent_status,
             agent::agent_install_server,
             agent::agent_import_server,

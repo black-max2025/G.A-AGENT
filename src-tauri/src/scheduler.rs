@@ -390,7 +390,15 @@ pub fn run_headless(id: &str) {
         .build_global();
     if let Some(t) = read_tasks().into_iter().find(|t| t.id == id && t.enabled) {
         let res = run_task(&t);
-        finish(id, res);
+        let (code, detail) = res.split_once('|').unwrap_or((res.as_str(), ""));
+        let kind = if code == "reminded" {
+            "reminder"
+        } else {
+            "task"
+        };
+        let detail = detail.to_string();
+        finish(id, res.clone());
+        crate::notify::show(kind, &detail);
     }
 }
 
