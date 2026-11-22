@@ -759,7 +759,12 @@ pub async fn remote_answer(state: &AppState, text: &str) -> String {
     }
     let mut msgs = vec![sys, json!({ "role": "user", "content": text })];
     for _ in 0..6 {
-        let m = match chat_step(&msgs).await {
+        let routed = crate::router::filter(
+            all_tools().as_array().cloned().unwrap_or_default(),
+            text,
+            crate::netguard::strict(),
+        );
+        let m = match chat_step(&msgs, routed).await {
             Ok(m) => m,
             Err(e) => return e,
         };
@@ -1004,7 +1009,7 @@ async fn drive(state: &AppState, mut sess: Session) -> (Session, AgentTurn) {
             );
         }
         let routed = crate::router::filter(
-            all_tools(),
+            all_tools().as_array().cloned().unwrap_or_default(),
             &last_user_text(&sess.messages),
             crate::netguard::strict(),
         );
