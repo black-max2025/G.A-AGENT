@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, State};
 use walkdir::WalkDir;
 
@@ -94,6 +94,13 @@ pub struct Config {
     pub idle_secs: Option<u64>,
     #[serde(default)]
     pub lang: Option<String>,
+    #[serde(default)]
+    pub batch: Option<u32>,
+    #[serde(default)]
+    pub ubatch: Option<u32>,
+    /// Strict Offline Mode (default ON): no network function may run.
+    #[serde(default)]
+    pub offline: Option<bool>,
 }
 
 impl Config {
@@ -104,10 +111,19 @@ impl Config {
         self.threads.unwrap_or(2).clamp(1, 8)
     }
     pub fn ctx(&self) -> u32 {
-        self.ctx.unwrap_or(8192).clamp(6144, 16384)
+        self.ctx.unwrap_or(4096).clamp(2048, 16384)
     }
     pub fn idle(&self) -> u64 {
-        self.idle_secs.unwrap_or(300).clamp(60, 7200)
+        self.idle_secs.unwrap_or(120).clamp(60, 7200)
+    }
+    pub fn offline(&self) -> bool {
+        self.offline.unwrap_or(true)
+    }
+    pub fn batch(&self) -> u32 {
+        self.batch.unwrap_or(128).clamp(32, 1024)
+    }
+    pub fn ubatch(&self) -> u32 {
+        self.ubatch.unwrap_or(64).clamp(16, 512)
     }
     pub fn lang(&self) -> String {
         self.lang.clone().unwrap_or_else(|| "ar".to_string())
@@ -159,6 +175,11 @@ pub struct AgentStatus {
     pub ctx: u32,
     pub idle_secs: u64,
     pub lang: String,
+    pub batch: u32,
+    pub ubatch: u32,
+    pub offline: bool,
+    pub cpu_features: String,
+    pub engine_verified: bool,
 }
 
 #[tauri::command]
@@ -199,6 +220,11 @@ pub fn agent_status(state: State<'_, AppState>) -> AgentStatus {
         ctx: cfg.ctx(),
         idle_secs: cfg.idle(),
         lang: cfg.lang(),
+        batch: cfg.batch(),
+        ubatch: cfg.ubatch(),
+        offline: cfg.offline(),
+        cpu_features: cpu_features(),
+        engine_verified: engine_verified(),
     }
 }
 
@@ -223,6 +249,7 @@ fn host_allowed(u: &reqwest::Url) -> bool {
 }
 
 fn download_client() -> Result<reqwest::Client, String> {
+    crate::netguard::guard()?;
     reqwest::Client::builder()
         .user_agent("GA-Agent")
         .redirect(reqwest::redirect::Policy::custom(|a| {
@@ -315,7 +342,102 @@ async fn ensure_server(app: &AppHandle) -> Result<PathBuf, String> {
     install_server(app).await.map(PathBuf::from)
 }
 
+/// CPU instruction sets that matter for llama.cpp, read from the real processor.
+pub fn cpu_features() -> String {
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    {
+        let mut v = Vec::new();
+        if std::is_x86_feature_detected!("sse4.2") {
+            v.push("SSE4.2");
+        }
+        if std::is_x86_feature_detected!("avx") {
+            v.push("AVX");
+        }
+        if std::is_x86_feature_detected!("avx2") {
+            v.push("AVX2");
+        }
+        if std::is_x86_feature_detected!("avx512f") {
+            v.push("AVX512");
+        }
+        v.join(" ")
+    }
+    #[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
+    {
+        String::new()
+    }
+}
+
+/// Release-asset name fragments to try, best first. A package that needs AVX2 is NEVER
+/// offered to a processor without AVX2 (an i5-2400 has AVX but not AVX2).
+pub fn engine_candidates(features: &str) -> Vec<&'static str> {
+    let avx2 = features.contains("AVX2");
+    let avx = features.contains("AVX");
+    if avx2 {
+        vec!["bin-win-cpu-x64", "bin-win-avx2-x64", "bin-win-avx-x64"]
+    } else if avx {
+        vec!["bin-win-cpu-x64", "bin-win-avx-x64", "bin-win-noavx-x64"]
+    } else {
+        vec!["bin-win-noavx-x64", "bin-win-cpu-x64"]
+    }
+}
+
+fn verified_marker() -> PathBuf {
+    llama_dir().join(".verified")
+}
+
+pub fn engine_verified() -> bool {
+    find_server().is_some() && verified_marker().exists()
+}
+
+/// Actually runs llama-server (`--version`) so a package is only called "installed" if it starts
+/// on THIS processor. The name of a package alone proves nothing.
+pub async fn verify_engine() -> Result<(), String> {
+    let exe = find_server().ok_or_else(|| "ERR_NO_ENGINE".to_string())?;
+    let ok = tauri::async_runtime::spawn_blocking(move || {
+        let mut cmd = Command::new(&exe);
+        cmd.arg("--version")
+            .stdout(Stdio::null())
+            .stderr(Stdio::null());
+        if let Some(dir) = exe.parent() {
+            cmd.current_dir(dir);
+        }
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            cmd.creation_flags(0x0800_0000);
+        }
+        let mut child = match cmd.spawn() {
+            Ok(c) => c,
+            Err(_) => return false,
+        };
+        let t0 = Instant::now();
+        loop {
+            match child.try_wait() {
+                Ok(Some(st)) => return st.success(),
+                Ok(None) => {
+                    if t0.elapsed() > Duration::from_secs(25) {
+                        let _ = child.kill();
+                        return false;
+                    }
+                    std::thread::sleep(Duration::from_millis(100));
+                }
+                Err(_) => return false,
+            }
+        }
+    })
+    .await
+    .map_err(es)?;
+    if ok {
+        let _ = std::fs::write(verified_marker(), cpu_features());
+        Ok(())
+    } else {
+        let _ = std::fs::remove_file(verified_marker());
+        Err("ERR_ENGINE_INCOMPATIBLE".to_string())
+    }
+}
+
 async fn install_server(app: &AppHandle) -> Result<String, String> {
+    crate::netguard::guard()?;
     let client = download_client()?;
     let rel: serde_json::Value = client
         .get("https://api.github.com/repos/ggml-org/llama.cpp/releases/latest")
@@ -327,29 +449,40 @@ async fn install_server(app: &AppHandle) -> Result<String, String> {
         .map_err(es)?;
     let assets = rel["assets"]
         .as_array()
-        .ok_or_else(|| "تعذر قراءة إصدارات llama.cpp".to_string())?;
+        .ok_or_else(|| "ERR_NET".to_string())?;
     let mut named: Vec<(String, String)> = Vec::new();
     for a in assets {
         if let (Some(n), Some(u)) = (a["name"].as_str(), a["browser_download_url"].as_str()) {
             named.push((n.to_string(), u.to_string()));
         }
     }
-    let pick = |needle: &str| -> Option<String> {
-        named
+    let mut tried = false;
+    for needle in engine_candidates(&cpu_features()) {
+        let Some((_, url)) = named
             .iter()
-            .find(|(n, _)| n.contains(needle) && n.ends_with(".zip"))
-            .map(|(_, u)| u.clone())
-    };
-    let url = pick("bin-win-cpu-x64")
-        .or_else(|| pick("bin-win-avx2-x64"))
-        .ok_or_else(|| "لم أجد نسخة Windows المناسبة من llama.cpp".to_string())?;
-    let zip_path = data_dir().join("llama.zip");
-    download_to(app, &url, &zip_path, "llama-server").await?;
-    extract_zip(&zip_path, &llama_dir())?;
-    let _ = std::fs::remove_file(&zip_path);
-    find_server()
-        .map(|p| p.to_string_lossy().to_string())
-        .ok_or_else(|| "لم يُعثر على llama-server.exe بعد الاستخراج".to_string())
+            .find(|(n, _)| n.contains(needle) && n.ends_with(".zip") && !n.contains("arm64"))
+        else {
+            continue;
+        };
+        tried = true;
+        let _ = std::fs::remove_dir_all(llama_dir());
+        let zip_path = data_dir().join("llama.zip");
+        download_to(app, url, &zip_path, "llama-server").await?;
+        let ex = extract_zip(&zip_path, &llama_dir());
+        let _ = std::fs::remove_file(&zip_path);
+        ex?;
+        if verify_engine().await.is_ok() {
+            return find_server()
+                .map(|p| p.to_string_lossy().to_string())
+                .ok_or_else(|| "ERR_NO_ENGINE".to_string());
+        }
+        let _ = std::fs::remove_dir_all(llama_dir()); // does not run on this CPU: try the next
+    }
+    Err(if tried {
+        "ERR_ENGINE_INCOMPATIBLE".to_string()
+    } else {
+        "ERR_NO_ENGINE".to_string()
+    })
 }
 
 #[tauri::command]
@@ -358,6 +491,7 @@ pub async fn agent_download_model(
     url: String,
     file_name: String,
 ) -> Result<String, String> {
+    crate::netguard::guard()?;
     let name = Path::new(&file_name)
         .file_name()
         .map(|n| n.to_string_lossy().to_string())
@@ -378,7 +512,7 @@ pub async fn agent_download_model(
 
 /// Offline import of the engine: a .zip file or a folder that contains llama-server.exe.
 #[tauri::command]
-pub fn agent_import_server(path: String) -> Result<String, String> {
+pub async fn agent_import_server(path: String) -> Result<String, String> {
     let p = Path::new(&path);
     let out = llama_dir();
     std::fs::create_dir_all(&out).map_err(es)?;
@@ -399,9 +533,9 @@ pub fn agent_import_server(path: String) -> Result<String, String> {
     } else {
         return Err("اختر ملف zip أو مجلداً يحتوي على llama-server.exe".to_string());
     }
-    find_server()
-        .map(|p| p.to_string_lossy().to_string())
-        .ok_or_else(|| "لم يُعثر على llama-server.exe داخل ما اخترت".to_string())
+    let exe = find_server().ok_or_else(|| "ERR_NO_ENGINE".to_string())?;
+    verify_engine().await?; // an imported engine must start on this CPU too
+    Ok(exe.to_string_lossy().to_string())
 }
 
 #[tauri::command]
@@ -440,6 +574,9 @@ pub async fn agent_start(state: State<'_, AppState>) -> Result<(), String> {
 /// Starts the engine if it is not running (also used automatically before every chat).
 pub async fn ensure_running(state: &AppState) -> Result<(), String> {
     touch();
+    if find_server().is_some() && !verified_marker().exists() {
+        verify_engine().await?; // once: the engine must really start on this CPU
+    }
     {
         let mut g = state.agent.lock().map_err(es)?;
         let mut already = false;
@@ -471,7 +608,14 @@ pub async fn ensure_running(state: &AppState) -> Result<(), String> {
                     .map(char::from)
                     .collect()
             };
-            let threads = cfg.threads().to_string();
+            let model_bytes = std::fs::metadata(&model).map(|m| m.len()).unwrap_or(0);
+            let (ctx, thr) = crate::perf::fit_to_memory(
+                cfg.ctx(),
+                cfg.threads(),
+                model_bytes,
+                crate::perf::available_ram(),
+            );
+            let threads = thr.to_string();
             let mut cmd = Command::new(&exe);
             cmd.arg("-m")
                 .arg(&model)
@@ -482,7 +626,7 @@ pub async fn ensure_running(state: &AppState) -> Result<(), String> {
                 .arg("--api-key")
                 .arg(&token)
                 .arg("-c")
-                .arg(cfg.ctx().to_string())
+                .arg(ctx.to_string())
                 .arg("-t")
                 .arg(&threads)
                 .arg("-tb")
@@ -490,9 +634,9 @@ pub async fn ensure_running(state: &AppState) -> Result<(), String> {
                 .arg("-np")
                 .arg("1")
                 .arg("-b")
-                .arg("256")
+                .arg(cfg.batch().to_string())
                 .arg("-ub")
-                .arg("128")
+                .arg(cfg.ubatch().to_string())
                 .arg("--jinja");
             if let Some(dir) = exe.parent() {
                 cmd.current_dir(dir);
@@ -514,6 +658,24 @@ pub async fn ensure_running(state: &AppState) -> Result<(), String> {
     let client = local_client(5)?;
     let url = url("/health");
     for _ in 0..480 {
+        let died: Option<String> = match state.agent.lock() {
+            Ok(mut g) => match g.child.as_mut().map(|c| c.try_wait()) {
+                Some(Ok(Some(st))) => {
+                    g.child = None;
+                    if st.code().map(|c| c as u32) == Some(0xC000_001D) {
+                        let _ = std::fs::remove_file(verified_marker());
+                        Some("ERR_ENGINE_INCOMPATIBLE".to_string())
+                    } else {
+                        Some("ERR_ENGINE_CRASHED".to_string())
+                    }
+                }
+                _ => None,
+            },
+            Err(_) => None,
+        };
+        if let Some(e) = died {
+            return Err(e);
+        }
         if let Ok(r) = client.get(&url).send().await {
             if r.status().is_success() {
                 touch();
@@ -552,11 +714,20 @@ pub fn spawn_idle_watcher(app: AppHandle) {
 }
 
 #[tauri::command]
-pub fn agent_set_perf(cpu_cap: u32, threads: u32, ctx: u32, idle_secs: u64) -> Result<(), String> {
+pub fn agent_set_perf(
+    cpu_cap: u32,
+    threads: u32,
+    ctx: u32,
+    idle_secs: u64,
+    batch: u32,
+    ubatch: u32,
+) -> Result<(), String> {
     let mut c = load_config();
     c.cpu_cap = Some(cpu_cap.clamp(10, 100));
     c.threads = Some(threads.clamp(1, 8));
-    c.ctx = Some(ctx.clamp(6144, 16384));
+    c.ctx = Some(ctx.clamp(2048, 16384));
+    c.batch = Some(batch.clamp(32, 1024));
+    c.ubatch = Some(ubatch.clamp(16, 512));
     c.idle_secs = Some(idle_secs.clamp(60, 7200));
     save_config(&c)
 }
@@ -728,4 +899,41 @@ pub fn agent_set_allow_commands(allow: bool) -> Result<(), String> {
     let mut cfg = load_config();
     cfg.allow_commands = allow;
     save_config(&cfg)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn i5_2400_never_gets_an_avx2_package() {
+        // Sandy Bridge: AVX yes, AVX2 no.
+        let c = engine_candidates("SSE4.2 AVX");
+        assert!(!c.iter().any(|n| n.contains("avx2")));
+        assert!(!c.iter().any(|n| n.contains("avx512")));
+        assert_eq!(c[0], "bin-win-cpu-x64");
+        assert!(c.contains(&"bin-win-avx-x64"));
+    }
+
+    #[test]
+    fn avx2_cpu_may_use_avx2_package() {
+        assert!(engine_candidates("SSE4.2 AVX AVX2").contains(&"bin-win-avx2-x64"));
+    }
+
+    #[test]
+    fn cpu_without_avx_gets_noavx_first() {
+        assert_eq!(engine_candidates("SSE4.2")[0], "bin-win-noavx-x64");
+    }
+
+    #[test]
+    fn performance_defaults_match_the_target_machine() {
+        let c = Config::default();
+        assert_eq!(c.threads(), 2);
+        assert_eq!(c.cap(), 60);
+        assert_eq!(c.ctx(), 4096);
+        assert_eq!(c.batch(), 128);
+        assert_eq!(c.ubatch(), 64);
+        assert_eq!(c.idle(), 120);
+        assert!(c.offline());
+    }
 }

@@ -67,6 +67,7 @@ fn valid_gmail(a: &str) -> bool {
 }
 
 pub fn connect(address: &str, app_password: &str) -> Result<(), String> {
+    crate::netguard::guard()?;
     let a = address.trim();
     if !valid_gmail(a) {
         return Err("اكتب عنوان Gmail صحيحاً مثل name@gmail.com".to_string());
@@ -104,6 +105,7 @@ fn clean_query(q: &str) -> String {
 }
 
 pub fn search(query: &str, limit: usize) -> Result<String, String> {
+    crate::netguard::guard()?;
     let addr = address().ok_or_else(|| "لم يُربط حساب بريد".to_string())?;
     let pw = password(&addr)?;
     let mut s = login(&addr, &pw)?;
@@ -175,6 +177,7 @@ fn text_of(m: &mailparse::ParsedMail) -> Option<String> {
 }
 
 pub fn read(uid: u32) -> Result<String, String> {
+    crate::netguard::guard()?;
     let addr = address().ok_or_else(|| "لم يُربط حساب بريد".to_string())?;
     let pw = password(&addr)?;
     let mut s = login(&addr, &pw)?;
@@ -217,6 +220,7 @@ fn valid_recipient(a: &str) -> bool {
 
 /// Sends ONE message to ONE recipient. Callers must have the user's approval already.
 pub fn send(to: &str, subject: &str, body: &str) -> Result<String, String> {
+    crate::netguard::guard()?;
     let to = to.trim();
     if !valid_recipient(to) {
         return Err("عنوان المستلم غير صالح (مستلم واحد فقط)".to_string());

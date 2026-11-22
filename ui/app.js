@@ -71,7 +71,7 @@ const loaders = {
   chat: () => refreshPlan(),
   space: () => { vaultInfo(); if (!$("ovPath").value) initOverview(); },
   tasks: () => { loadTasks(); loadMemory(); },
-  accounts: () => { loadMail(); loadTg(); loadInbox(); },
+  accounts: () => { loadMail(); loadTg(); loadInbox(); invoke("offline_get").then(offlineUi).catch(() => {}); },
   journal: () => loadLog(),
   settings: () => { refreshBrain(); loadDomains(); fillSafe(); },
 };
@@ -628,6 +628,16 @@ async function loadLog() {
 $("btnLogRefresh").onclick = loadLog;
 
 // ================================================================ SETTINGS (brain, performance, data, permissions)
+function offlineUi(on) {
+  $("offBanner").hidden = !on;
+  ["btnMailConnect", "btnTgConnect", "btnTgPair", "btnWaOpen"].forEach((i) => ($(i).disabled = !!on));
+}
+$("offSw").onchange = async (e) => {
+  const on = e.target.checked;
+  if (!on && !(await ask(t("off_confirm")))) { e.target.checked = true; return; }
+  try { await invoke("offline_set", { on }); offlineUi(on); toast(on ? t("off_now_on") : t("off_now_off")); } catch (er) { fail(er); }
+  refreshBrain();
+};
 const HF = "https://huggingface.co/";
 const MODELS = {
   q35: { name: "Qwen3.5-2B-Q4_K_M.gguf", urls: [
@@ -656,6 +666,9 @@ async function refreshBrain() {
     lastStatus = s; refreshPill();
     $("dataDir").value = s.data_dir;
     $("allowCmd").checked = s.allow_commands;
+    $("pBatch").value = String(s.batch); $("pUbatch").value = String(s.ubatch);
+    $("offSw").checked = !!s.offline; offlineUi(s.offline);
+    $("cpuLine").textContent = t("cpu_line", { f: s.cpu_features || "?" }) + " — " + (s.engine_verified ? t("engine_ok") : t("engine_unverified"));
     $("pCap").value = s.cpu_cap; $("pThr").value = Math.min(4, s.threads); $("pCtx").value = String(s.ctx);
     const opt = [...$("pIdle").options].reduce((b, o) => (Math.abs(o.value - s.idle_secs) < Math.abs(b.value - s.idle_secs) ? o : b));
     $("pIdle").value = opt.value; updPerfLabels();
@@ -669,12 +682,12 @@ function updPerfLabels() { $("capV").textContent = $("pCap").value + "%"; $("thr
 $("pCap").oninput = updPerfLabels; $("pThr").oninput = updPerfLabels;
 async function savePerf() {
   try {
-    await invoke("agent_set_perf", { cpuCap: Number($("pCap").value), threads: Number($("pThr").value), ctx: Number($("pCtx").value), idleSecs: Number($("pIdle").value) });
+    await invoke("agent_set_perf", { cpuCap: Number($("pCap").value), threads: Number($("pThr").value), ctx: Number($("pCtx").value), idleSecs: Number($("pIdle").value), batch: Number($("pBatch").value), ubatch: Number($("pUbatch").value) });
     toast(t("perf_saved"));
   } catch (e) { fail(e); }
 }
 $("btnPerfSave").onclick = savePerf;
-$("btnPerfLow").onclick = () => { $("pCap").value = 50; $("pThr").value = 2; $("pCtx").value = "8192"; $("pIdle").value = "120"; updPerfLabels(); savePerf(); };
+$("btnPerfLow").onclick = () => { $("pCap").value = 50; $("pThr").value = 2; $("pCtx").value = "2048"; $("pBatch").value = "64"; $("pUbatch").value = "32"; $("pIdle").value = "120"; updPerfLabels(); savePerf(); };
 listen("download-progress", (ev) => {
   const p = ev.payload;
   $("dlProgress").textContent = t("downloading", { l: p.label, a: fmt(p.got), b: p.total ? fmt(p.total) : "?", pct: p.total ? Math.round((p.got / p.total) * 100) + "%" : "" });
@@ -686,6 +699,7 @@ $("btnSaveDir").onclick = async () => {
 };
 async function prepareBrain(wantModel) {
   let s = await refreshBrain();
+  if (s.offline && (!s.server_installed || !s.model_exists || wantModel)) throw "ERR_OFFLINE";
   if (!s.server_installed && !wantModel) { $("dlProgress").textContent = t("installing_engine"); await invoke("agent_install_server"); s = await refreshBrain(); }
   if (wantModel) { await downloadModel(wantModel); s = await refreshBrain(); }
   else if (!s.model_path || !s.model_exists) { await downloadModel(MODELS.q35); s = await refreshBrain(); }
@@ -734,6 +748,101 @@ async function loadDomains() {
 document.querySelectorAll("[data-domain]").forEach((c) => (c.onchange = async () => {
   try { await invoke("agent_set_domain", { domain: c.dataset.domain, enabled: c.checked }); } catch (e) { fail(e); }
 }));
+
+
+// ================================================================ STORAGE PANEL
+let stPlan = null;
+const stSel = new Set();
+const riskBadge = (r) => el("span", "badge " + (r === "low" ? "b-safe" : "b-review"), t("st_risk_" + r));
+function bar(pct) {
+  const b = el("div", "dbar"), f = el("div", "dfill");
+  f.style.width = pct + "%"; if (pct > 90) f.classList.add("low");
+  b.appendChild(f); return b;
+}
+function renderTop(r) {
+  const box = $("stTop"); box.replaceChildren();
+  box.appendChild(el("div", "gh", t("st_big_folders") + (r.truncated ? " (" + t("st_partial") + ")" : "")));
+  r.folders.forEach((e) => { const d = el("div", "lg"); const l = el("div"); l.append(el("div", "nm", e.name), el("div", "pt", e.path)); d.append(l, el("span", "sz", fmt(e.size)), el("span")); box.appendChild(d); });
+  box.appendChild(el("div", "gh", t("st_big_files")));
+  r.files.forEach((e) => { const d = el("div", "lg"); const l = el("div"); l.append(el("div", "nm", e.name), el("div", "pt", e.path)); d.append(l, el("span", "sz", fmt(e.size)), el("span", "muted", I18N.has("kd_" + e.kind) ? t("kd_" + e.kind) : "")); box.appendChild(d); });
+}
+$("btnStAnalyze").onclick = (ev) => withBusy(ev.currentTarget, async () => {
+  $("stStatus").textContent = t("st_wait"); $("stTop").replaceChildren();
+  try {
+    const o = await invoke("storage_overview", { withSizes: true });
+    const dv = $("stDrives"); dv.replaceChildren(); dv.appendChild(el("div", "gh", t("st_drives")));
+    o.drives.forEach((d) => {
+      const r = el("div", "drv");
+      const top = el("button", "", t("st_top"));
+      top.onclick = () => withBusy(top, async () => {
+        $("stStatus").textContent = t("st_wait");
+        try { renderTop(await invoke("storage_top", { path: d.drive + "\\" })); } catch (e) { fail(e); }
+        $("stStatus").textContent = "";
+      });
+      const row = el("div", "row between");
+      row.append(el("span", "", t("drive_line", { d: d.drive, free: fmt(d.free), total: fmt(d.total) })), top);
+      r.append(row, bar(d.used_pct)); dv.appendChild(r);
+    });
+    const pv = $("stProfiles"); pv.replaceChildren(); pv.appendChild(el("div", "gh", t("st_profiles")));
+    o.profiles.forEach((p) => {
+      const c = el("div", "msgbox"), h = el("div", "nm", p.name + " ");
+      h.appendChild(el("span", "badge " + (p.active ? "b-safe" : "b-review"), p.active ? t("st_active") : t("st_old")));
+      if (p.current) h.appendChild(el("span", "badge", t("st_current")));
+      c.append(h, el("div", "pt", p.path));
+      p.folders.filter((f) => f.kind !== "appdata" && f.exists).forEach((f) => {
+        const r = el("div", "rs", (t("fk_" + f.kind)) + ": " + f.path + (f.size ? " — " + fmt(f.size) : ""));
+        if (f.redirected) r.appendChild(el("span", "badge b-ask", t("st_moved")));
+        c.appendChild(r);
+      });
+      pv.appendChild(c);
+    });
+    $("stStatus").textContent = "";
+  } catch (e) { $("stStatus").textContent = t("error") + ": " + errText(e); }
+});
+function stTotal() {
+  const n = stPlan.items.filter((i) => stSel.has(i.id)).reduce((a, i) => a + i.expected, 0);
+  $("stTotal").textContent = t("st_expected") + ": " + fmt(n);
+}
+$("btnStPlan").onclick = (ev) => withBusy(ev.currentTarget, async () => {
+  $("stStatus").textContent = t("st_wait"); $("stReport").hidden = true;
+  try {
+    stPlan = await invoke("storage_plan", { drives: [] });
+    stSel.clear(); stPlan.items.forEach((i) => { if (i.selected) stSel.add(i.id); });
+    const box = $("stItems"); box.replaceChildren();
+    if (!stPlan.items.length) box.appendChild(el("div", "muted", t("st_nothing")));
+    stPlan.items.forEach((i) => {
+      const d = el("div", "item"), cb = document.createElement("input");
+      cb.type = "checkbox"; cb.checked = stSel.has(i.id);
+      cb.onchange = () => { cb.checked ? stSel.add(i.id) : stSel.delete(i.id); stTotal(); };
+      const mid = el("div"), nm = el("div", "nm", i.title);
+      nm.append(el("span", "badge", t("st_m_" + i.method)), riskBadge(i.risk), el("span", "badge " + (i.reversible ? "b-safe" : "b-ask"), t(i.reversible ? "st_reversible" : "st_irreversible")));
+      mid.append(nm, el("div", "pt", i.path));
+      d.append(cb, mid, el("div", "sz", "~" + fmt(i.expected))); box.appendChild(d);
+    });
+    $("stCross").textContent = stPlan.cross.length ? t("st_cross", { g: stPlan.cross.length, s: fmt(stPlan.cross_saving) }) : "";
+    $("stPlan").hidden = false; stTotal(); $("stStatus").textContent = "";
+  } catch (e) { $("stStatus").textContent = t("error") + ": " + errText(e); }
+});
+$("btnStRun").onclick = async () => {
+  const ids = [...stSel];
+  if (!stPlan || !ids.length) return toast(t("nothing_selected"));
+  const chosen = stPlan.items.filter((i) => stSel.has(i.id));
+  const msg = t("st_confirm") + "\n" + chosen.map((i) => `• ${t("st_m_" + i.method)}: ${i.title} (~${fmt(i.expected)}, ${t("st_risk_" + i.risk)})`).join("\n") + "\n\n" + t("st_note_est") + "\n" + t("cf_go");
+  if (!(await ask(msg))) return;
+  setBusy(true); $("stStatus").textContent = t("working");
+  try {
+    const r = await invoke("storage_apply", { planId: stPlan.id, ids });
+    const box = $("stReport"); box.hidden = false; box.replaceChildren();
+    box.appendChild(el("h3", "", t("st_done")));
+    r.items.forEach((i) => box.appendChild(el("div", "rs", `${i.ok ? "✅" : "⚠"} ${i.title} (${t("st_m_" + i.method)}): ${t("st_before")} ${i.before ? fmt(i.before) : "—"} → ${t("st_after")} ${i.before ? fmt(i.after) : "—"} | ${t("st_expected")} ${fmt(i.expected)} | ${t("st_actual")} ${fmt(i.actual)}${i.ok ? "" : " — " + errText(i.note)}`)));
+    const m = r.measured_gain;
+    box.appendChild(el("div", "nm", `${t("st_expected")}: ${fmt(r.expected_total)} — ${t("st_actual")}: ${fmt(r.reported_actual)} — ${t("st_measured")}: ${m < 0 ? "-" : ""}${fmt(Math.abs(m))}`));
+    box.appendChild(el("div", "muted small", t("st_undo_hint")));
+    r.errors.forEach((e) => box.appendChild(el("div", "rs", "⚠ " + e)));
+    $("stPlan").hidden = true; stPlan = null; loadDrives();
+  } catch (e) { fail(e); }
+  finally { setBusy(false); $("stStatus").textContent = ""; }
+};
 
 // ================================================================ start
 (async function init() {

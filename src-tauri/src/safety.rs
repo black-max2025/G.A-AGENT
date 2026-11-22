@@ -58,6 +58,9 @@ fn user_folder_roots() -> Vec<String> {
             v.push(norm(&up.join(d)));
         }
     }
+    // Every registered profile (C:\Users and D:\Users...) and every Known Folder, wherever
+    // Windows has moved it.
+    v.extend(crate::profiles::protected_roots());
     v
 }
 
@@ -110,7 +113,35 @@ pub fn is_sane_target(path: &Path) -> bool {
     if is_app_owned(path) {
         return false;
     }
+    if crate::profiles::in_other_profile(&p) {
+        return false; // other users' files are never touched
+    }
     path.components().count() >= 3
+}
+
+/// Full validation of a path BEFORE any change (compress, link, move, delete).
+/// Returns an ERR_ code the UI can translate. Pure checks first, then the file system.
+pub fn check_target(path: &Path) -> Result<(), String> {
+    let s = path.to_string_lossy();
+    if !path.is_absolute() || s.contains("..") || s.contains('\0') {
+        return Err("ERR_PATH_NOT_ALLOWED".to_string());
+    }
+    if !is_sane_target(path) || is_protected(path) {
+        return Err("ERR_PATH_NOT_ALLOWED".to_string());
+    }
+    let n = norm(path);
+    if n.contains("\\winsxs") || n.contains("\\program files") || n.contains("\\windows\\") {
+        return Err("ERR_PATH_NOT_ALLOWED".to_string());
+    }
+    if let Ok(meta) = std::fs::symlink_metadata(path) {
+        if is_reparse(&meta) {
+            return Err("ERR_SPECIAL_LINKS".to_string());
+        }
+        if is_offline(&meta) {
+            return Err("ERR_FILE_OFFLINE".to_string());
+        }
+    }
+    Ok(())
 }
 
 /// Strict check for heuristic (user-folder) findings: system locations are off limits.
@@ -175,4 +206,27 @@ pub fn is_system_location(path: &Path) -> bool {
         }
     }
     p.contains("\\system32") || p.contains("\\winsxs")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn relative_and_traversal_paths_are_refused() {
+        assert!(check_target(Path::new("relative\\dir")).is_err());
+        assert!(check_target(Path::new("C:\\Users\\a\\..\\..\\Windows")).is_err());
+    }
+
+    #[test]
+    fn drive_roots_and_system_folders_are_refused() {
+        assert!(!is_sane_target(Path::new("C:\\")));
+        assert!(!is_sane_target(Path::new("C:\\Windows\\System32\\drivers")));
+        assert!(!is_sane_target(Path::new("C:\\Windows\\WinSxS\\x")));
+    }
+
+    #[test]
+    fn norm_is_case_and_slash_insensitive() {
+        assert_eq!(norm(Path::new("C:/Users/Ahmed/")), "c:\\users\\ahmed");
+    }
 }

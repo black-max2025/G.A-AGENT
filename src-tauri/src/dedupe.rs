@@ -236,7 +236,8 @@ pub fn summary(plan_id: &str) -> Option<String> {
     ))
 }
 
-pub fn apply(plan_id: &str) -> Result<String, String> {
+/// Returns (files linked, bytes freed).
+pub fn apply_counts(plan_id: &str) -> Result<(usize, u64), String> {
     let (root, groups, stamp) = {
         let mut g = PLANS.lock().map_err(es)?;
         let i = g
@@ -280,6 +281,11 @@ pub fn apply(plan_id: &str) -> Result<String, String> {
     }
     let n = links.len();
     shrink::journal_dedupe(&root, links, saved);
+    Ok((n, saved))
+}
+
+pub fn apply(plan_id: &str) -> Result<String, String> {
+    let (n, saved) = apply_counts(plan_id)?;
     Ok(format!("{} files linked, {} MB freed", n, saved >> 20))
 }
 

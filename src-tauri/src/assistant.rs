@@ -110,8 +110,13 @@ fn all_tools() -> Value {
     };
     for t in ext::tools_extra() {
         let n = t["function"]["name"].as_str().unwrap_or("").to_string();
+        let offline = crate::netguard::strict();
         let blocked = ext::domain_of(&n)
-            .map(|d| off.iter().any(|x| x == d) || (d == "email" && !crate::email::connected()))
+            .map(|d| {
+                off.iter().any(|x| x == d)
+                    || (d == "email" && !crate::email::connected())
+                    || (offline && matches!(d, "internet" | "email" | "chat"))
+            })
             .unwrap_or(false);
         if !blocked {
             v.push(t);
@@ -592,6 +597,10 @@ pub fn ps_raw(cmd: &str) -> String {
 
 async fn exec_tool(state: &AppState, name: &str, a: &Value) -> String {
     if let Some(d) = ext::domain_of(name) {
+        if crate::netguard::strict() && matches!(d, "internet" | "email" | "chat") {
+            return "ERR_OFFLINE: strict offline mode is on; this tool is not available."
+                .to_string();
+        }
         if load_config().disabled_domains.iter().any(|x| x == d) {
             return "هذا المجال معطّل من إعدادات المستخدم.".to_string();
         }
@@ -600,6 +609,34 @@ async fn exec_tool(state: &AppState, name: &str, a: &Value) -> String {
         }
     }
     let r: Result<String, String> = match name {
+        "list_profiles" | "storage_overview" => Ok(crate::storage::overview_text()),
+        "storage_top" => match sarg(a, "path") {
+            Ok(p) => crate::storage::top_text(&p),
+            Err(e) => Err(e),
+        },
+        "storage_plan" => {
+            let drives: Vec<String> = a["drives"]
+                .as_array()
+                .map(|v| {
+                    v.iter()
+                        .filter_map(|x| x.as_str().map(|s| s.to_string()))
+                        .collect()
+                })
+                .unwrap_or_default();
+            crate::storage::build_plan(state, drives).map(|p| crate::storage::plan_text(&p))
+        }
+        "storage_apply" => {
+            let ids: Option<Vec<String>> = a["item_ids"].as_array().map(|v| {
+                v.iter()
+                    .filter_map(|x| x.as_str().map(|s| s.to_string()))
+                    .collect()
+            });
+            match sarg(a, "plan_id") {
+                Ok(pid) => crate::storage::apply_plan(state, &pid, ids)
+                    .map(|r| crate::storage::report_text(&r)),
+                Err(e) => Err(e),
+            }
+        }
         "disk_free" => Ok(sysinfo::drives()
             .iter()
             .map(|d| {
@@ -749,15 +786,16 @@ pub async fn remote_answer(state: &AppState, text: &str) -> String {
     String::new()
 }
 
-async fn chat_step(messages: &[Value]) -> Result<Value, String> {
+async fn chat_step(messages: &[Value], tools: Vec<Value>) -> Result<Value, String> {
     let _slot = INFER.lock().await;
     touch();
-    let client = local_client(900)?;
+    let client = local_client(150)?;
     let body = json!({
         "messages": messages,
-        "tools": all_tools(),
+        "tools": tools,
         "temperature": 0.3,
-        "max_tokens": 900,
+        "max_tokens": 700,
+        "repeat_penalty": 1.1,
         "chat_template_kwargs": { "enable_thinking": false }
     });
     let v: Value = client
@@ -770,7 +808,11 @@ async fn chat_step(messages: &[Value]) -> Result<Value, String> {
         .await
         .map_err(es)?;
     if let Some(e) = v.get("error") {
-        return Err(format!("خطأ من النموذج: {}", e));
+        let s = e.to_string();
+        if s.contains("exceed_context_size") {
+            return Err("ERR_CONTEXT_FULL".to_string());
+        }
+        return Err(format!("خطأ من النموذج: {}", s));
     }
     Ok(v["choices"][0]["message"].clone())
 }
@@ -798,22 +840,97 @@ fn parse_calls(msg: &Value) -> Vec<ToolCall> {
     out
 }
 
-fn trim_history(msgs: &mut Vec<Value>) {
-    if msgs.len() <= 40 {
+/// Text of the newest user message (used to route tools).
+fn last_user_text(msgs: &[Value]) -> String {
+    msgs.iter()
+        .rev()
+        .find(|m| m["role"] == "user")
+        .and_then(|m| m["content"].as_str())
+        .unwrap_or("")
+        .to_string()
+}
+
+fn short(s: &str, n: usize) -> String {
+    let t: String = s.chars().take(n).collect();
+    if s.chars().count() > n {
+        format!("{}…", t)
+    } else {
+        t
+    }
+}
+
+/// Keeps the context small without asking the model to summarize (which costs tokens and can
+/// drift): old turns become ONE short Rust-made summary; only the latest turn stays verbatim.
+/// `hard` drops everything except the system prompt and the latest user message.
+fn compact_history(msgs: &mut Vec<Value>, hard: bool) {
+    let approx: usize = msgs.iter().map(|m| m.to_string().chars().count()).sum();
+    if !hard && msgs.len() <= 12 && approx < 9000 {
         return;
     }
-    let start = msgs.len() - 24;
-    let idx = (start..msgs.len()).find(|&i| msgs[i]["role"] == "user");
-    if let Some(i) = idx {
-        let mut keep = vec![msgs[0].clone()];
-        keep.extend_from_slice(&msgs[i..]);
-        *msgs = keep;
+    let Some(last_user) = msgs.iter().rposition(|m| m["role"] == "user") else {
+        return;
+    };
+    if last_user <= 1 && !hard {
+        // a single long turn: only shorten very old tool outputs
+        for m in msgs.iter_mut() {
+            if m["role"] == "tool" {
+                if let Some(c) = m["content"].as_str() {
+                    m["content"] = json!(short(c, 700));
+                }
+            }
+        }
+        return;
     }
+    let mut notes: Vec<String> = Vec::new();
+    if !hard {
+        for m in &msgs[1..last_user] {
+            match m["role"].as_str().unwrap_or("") {
+                "user" => notes.push(format!(
+                    "user: {}",
+                    short(m["content"].as_str().unwrap_or(""), 120)
+                )),
+                "assistant" => {
+                    if let Some(c) = m["content"].as_str() {
+                        if !c.is_empty() {
+                            notes.push(format!("assistant: {}", short(c, 160)));
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+        let keep = notes.len().saturating_sub(8);
+        notes.drain(..keep);
+    }
+    let mut out = vec![msgs[0].clone()];
+    if !notes.is_empty() {
+        out.push(json!({
+            "role": "user",
+            "content": format!("[Summary of the earlier conversation, for context only]\n{}", notes.join("\n"))
+        }));
+        out.push(json!({ "role": "assistant", "content": "OK." }));
+    }
+    out.extend_from_slice(&msgs[last_user..]);
+    *msgs = out;
+}
+
+/// True when the text is a loop (the same chunk repeated again and again).
+pub fn looks_repetitive(s: &str) -> bool {
+    let c: Vec<char> = s.chars().collect();
+    if c.len() < 240 {
+        return false;
+    }
+    let tail: String = c[c.len() - 40..].iter().collect();
+    s.matches(&tail).count() >= 5
 }
 
 async fn drive(state: &AppState, mut sess: Session) -> (Session, AgentTurn) {
     let mut log: Vec<String> = Vec::new();
     let mut steps = 0;
+    let t0 = Instant::now();
+    let mut seen: std::collections::HashMap<String, u32> = std::collections::HashMap::new();
+    let mut fails = 0u32;
+    let mut retried_ctx = false;
     loop {
         while let Some(call) = sess.queue.first().cloned() {
             if call.name == "run_powershell" && !load_config().allow_commands {
@@ -841,12 +958,42 @@ async fn drive(state: &AppState, mut sess: Session) -> (Session, AgentTurn) {
                 );
             }
             sess.queue.remove(0);
+            let key = format!("{}{}", call.name, call.args);
+            let n = seen.entry(key).or_insert(0);
+            *n += 1;
+            if *n > 2 {
+                // the same call a third time: the model is looping
+                sess.queue.clear();
+                return (
+                    sess,
+                    AgentTurn {
+                        text: "توقفت لأنني كررت الخطوة نفسها. أعد صياغة الطلب بشكل أبسط."
+                            .to_string(),
+                        log,
+                        pending: None,
+                    },
+                );
+            }
             let out = exec_tool(state, &call.name, &call.args).await;
             log.push(tool_label(&call.name).to_string());
+            if out.starts_with("ERR_") || out.starts_with("خطأ") {
+                fails += 1;
+            }
             sess.messages.push(tool_msg(&call.id, &out));
+            if fails >= 3 {
+                sess.queue.clear();
+                return (
+                    sess,
+                    AgentTurn {
+                        text: "فشلت عدة محاولات متتالية فتوقفت بدل أن أعيدها بلا نهاية.".to_string(),
+                        log,
+                        pending: None,
+                    },
+                );
+            }
         }
         steps += 1;
-        if steps > 10 {
+        if steps > 8 || t0.elapsed() > Duration::from_secs(240) {
             return (
                 sess,
                 AgentTurn {
@@ -856,7 +1003,20 @@ async fn drive(state: &AppState, mut sess: Session) -> (Session, AgentTurn) {
                 },
             );
         }
-        let step = chat_step(&sess.messages).await;
+        let routed = crate::router::filter(
+            all_tools(),
+            &last_user_text(&sess.messages),
+            crate::netguard::strict(),
+        );
+        let step = chat_step(&sess.messages, routed.clone()).await;
+        let step = match step {
+            Err(e) if e == "ERR_CONTEXT_FULL" && !retried_ctx => {
+                retried_ctx = true;
+                compact_history(&mut sess.messages, true);
+                chat_step(&sess.messages, routed).await
+            }
+            other => other,
+        };
         let msg = match step {
             Ok(m) => m,
             Err(e) => {
@@ -872,12 +1032,15 @@ async fn drive(state: &AppState, mut sess: Session) -> (Session, AgentTurn) {
         };
         let calls = parse_calls(&msg);
         let raw = msg["content"].as_str().unwrap_or("");
-        let content = raw
+        let mut content = raw
             .rsplit("</think>")
             .next()
             .unwrap_or("")
             .trim()
             .to_string();
+        if looks_repetitive(&content) {
+            content = short(&content, 300);
+        }
         if calls.is_empty() {
             let text = if content.is_empty() {
                 "لم أستطع صياغة إجابة. أعد المحاولة بسؤال أوضح.".to_string()
@@ -946,7 +1109,7 @@ pub async fn agent_send(state: State<'_, AppState>, message: String) -> Result<A
     }
     sess.messages
         .push(json!({ "role": "user", "content": message }));
-    trim_history(&mut sess.messages);
+    compact_history(&mut sess.messages, false);
     let (sess, turn) = drive(&state, sess).await;
     {
         let mut g = state.session.lock().map_err(es)?;
@@ -989,4 +1152,50 @@ pub fn agent_reset(state: State<'_, AppState>) -> Result<(), String> {
     let mut g = state.session.lock().map_err(es)?;
     *g = Session::default();
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn conv(turns: usize) -> Vec<Value> {
+        let mut v = vec![json!({"role":"system","content":"sys"})];
+        for i in 0..turns {
+            v.push(json!({"role":"user","content":format!("question {}", i)}));
+            v.push(json!({"role":"assistant","content":format!("answer {}", i)}));
+        }
+        v.push(json!({"role":"user","content":"latest request"}));
+        v
+    }
+
+    #[test]
+    fn long_history_is_compacted_but_keeps_system_and_latest() {
+        let mut m = conv(20);
+        compact_history(&mut m, false);
+        assert!(m.len() < 8);
+        assert_eq!(m[0]["content"], "sys");
+        assert_eq!(m.last().unwrap()["content"], "latest request");
+    }
+
+    #[test]
+    fn short_history_is_untouched() {
+        let mut m = conv(2);
+        let n = m.len();
+        compact_history(&mut m, false);
+        assert_eq!(m.len(), n);
+    }
+
+    #[test]
+    fn hard_compaction_keeps_only_system_and_latest_turn() {
+        let mut m = conv(5);
+        compact_history(&mut m, true);
+        assert_eq!(m.len(), 2);
+    }
+
+    #[test]
+    fn repetition_is_detected() {
+        let looped = "ابحث عن الملف ثم افتحه. ".repeat(30);
+        assert!(looks_repetitive(&looped));
+        assert!(!looks_repetitive("جملة عادية قصيرة"));
+    }
 }

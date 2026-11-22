@@ -1,0 +1,59 @@
+name: Build llama-server (AVX, no AVX2)
+
+# Fallback for processors like the Core i5-2400 (AVX yes, AVX2 no) when no official package
+# starts on them. Run it by hand, download the artifact, then use
+# Settings -> More options -> "Import engine (zip)" in G.A AGENT (works offline).
+on:
+  workflow_dispatch:
+    inputs:
+      llama_tag:
+        description: "llama.cpp release tag (for example b4800). Empty = latest release."
+        required: false
+        default: ""
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Resolve llama.cpp tag
+        id: tag
+        shell: bash
+        run: |
+          T="${{ github.event.inputs.llama_tag }}"
+          if [ -z "$T" ]; then
+            T=$(curl -s https://api.github.com/repos/ggml-org/llama.cpp/releases/latest | python -c "import sys,json;print(json.load(sys.stdin)['tag_name'])")
+          fi
+          echo "tag=$T" >> "$GITHUB_OUTPUT"
+
+      - name: Get llama.cpp
+        shell: bash
+        run: git clone --depth 1 --branch "${{ steps.tag.outputs.tag }}" https://github.com/ggml-org/llama.cpp.git llama.cpp
+
+      - name: Configure (AVX on, AVX2/FMA/F16C/AVX512 off)
+        working-directory: llama.cpp
+        run: >
+          cmake -B build -DGGML_NATIVE=OFF -DGGML_AVX=ON -DGGML_AVX2=OFF -DGGML_FMA=OFF
+          -DGGML_F16C=OFF -DGGML_AVX512=OFF -DGGML_BMI2=OFF -DGGML_BACKEND_DL=OFF
+          -DBUILD_SHARED_LIBS=OFF -DLLAMA_CURL=OFF -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_EXAMPLES=OFF
+          -DLLAMA_BUILD_SERVER=ON
+
+      - name: Build llama-server
+        working-directory: llama.cpp
+        run: cmake --build build --config Release --target llama-server -j 4
+
+      - name: Package
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path out | Out-Null
+          Copy-Item llama.cpp/build/bin/Release/llama-server.exe out/
+          Get-ChildItem llama.cpp/build/bin/Release/*.dll -ErrorAction SilentlyContinue | Copy-Item -Destination out/
+          Compress-Archive -Path out/* -DestinationPath llama-server-avx-noavx2-${{ steps.tag.outputs.tag }}.zip
+
+      - name: Smoke test (starts and prints its version)
+        shell: pwsh
+        run: ./out/llama-server.exe --version
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: llama-server-avx-noavx2
+          path: llama-server-avx-noavx2-*.zip

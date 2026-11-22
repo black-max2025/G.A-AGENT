@@ -23,11 +23,18 @@ tokio = { version = "1", features = ["time", "sync"] }
 flate2 = "1"
 rand = "0.8"
 zstd = "0.13"
-imap = "2.4"
-native-tls = "0.2"
-lettre = { version = "0.11", default-features = false, features = ["smtp-transport", "builder", "native-tls"] }
-mailparse = "0.15"
+imap = { version = "2.4", optional = true }
+native-tls = { version = "0.2", optional = true }
+lettre = { version = "0.11", default-features = false, features = ["smtp-transport", "builder", "native-tls"], optional = true }
+mailparse = { version = "0.15", optional = true }
 keyring = { version = "3", features = ["windows-native"] }
+
+[features]
+# Default build: network features exist but are blocked at run time by Strict Offline Mode (default ON).
+# `cargo build --no-default-features` builds a version WITHOUT mail libraries, where every network
+# function is permanently refused (strict() is always true).
+default = ["network"]
+network = ["dep:imap", "dep:native-tls", "dep:lettre", "dep:mailparse"]
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_Storage_FileSystem", "Win32_System_JobObjects", "Win32_System_Threading", "Win32_System_SystemInformation", "Win32_System_Time", "Win32_Security"] }

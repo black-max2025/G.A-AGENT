@@ -28,6 +28,14 @@ jobs:
       - name: Install CLI
         run: npm install
 
+      - name: Unit tests (router, storage, profiles, safety, offline guard)
+        continue-on-error: true
+        run: cargo test --manifest-path src-tauri/Cargo.toml
+
+      - name: Offline build check (no network libraries)
+        continue-on-error: true
+        run: cargo check --manifest-path src-tauri/Cargo.toml --no-default-features
+
       - name: Build
         run: npm run tauri -- build
 

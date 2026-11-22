@@ -5,16 +5,24 @@ mod assistant;
 mod assistant_ext;
 mod cleaner;
 mod dedupe;
+#[cfg(feature = "network")]
+mod email;
+#[cfg(not(feature = "network"))]
+#[path = "email_stub.rs"]
 mod email;
 mod files;
 mod inbox;
+mod netguard;
 mod overview;
 mod perf;
+mod profiles;
+mod router;
 mod rules;
 mod safety;
 mod scanner;
 mod scheduler;
 mod shrink;
+mod storage;
 mod store;
 mod sysinfo;
 mod sysops;
@@ -39,7 +47,7 @@ pub struct AppState {
 
 static COUNTER: AtomicU64 = AtomicU64::new(1);
 
-fn register(state: &AppState, list: &mut [scanner::Finding]) -> Result<(), String> {
+pub fn register(state: &AppState, list: &mut [scanner::Finding]) -> Result<(), String> {
     let mut g = state.findings.lock().map_err(|e| e.to_string())?;
     for f in list.iter_mut() {
         let n = COUNTER.fetch_add(1, Ordering::SeqCst);
@@ -49,7 +57,7 @@ fn register(state: &AppState, list: &mut [scanner::Finding]) -> Result<(), Strin
     Ok(())
 }
 
-fn register_cands(state: &AppState, list: &mut [shrink::Candidate]) -> Result<(), String> {
+pub fn register_cands(state: &AppState, list: &mut [shrink::Candidate]) -> Result<(), String> {
     let mut g = state.cands.lock().map_err(|e| e.to_string())?;
     for c in list.iter_mut() {
         let n = COUNTER.fetch_add(1, Ordering::SeqCst);
@@ -238,6 +246,10 @@ fn main() {
                 .build_global();
             agent::spawn_idle_watcher(app.handle().clone());
             telegram::autostart(app.handle().clone());
+            // read the real user profiles once, in the background, so the safety layer knows them
+            std::thread::spawn(|| {
+                let _ = profiles::discover(false);
+            });
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -288,6 +300,14 @@ fn main() {
             assistant_ext::task_remove,
             scheduler::task_run_now,
             scheduler::task_add,
+            storage::storage_overview,
+            storage::storage_top,
+            storage::storage_plan,
+            storage::storage_apply,
+            storage::storage_cross_dups,
+            profiles::profiles_list,
+            netguard::offline_get,
+            netguard::offline_set,
             scheduler::tasks_unseen,
             email::email_connect,
             email::email_disconnect,

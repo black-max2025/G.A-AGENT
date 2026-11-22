@@ -76,6 +76,24 @@
       <h1 data-i18n="space_title"></h1>
       <p class="lead" data-i18n="space_sub"></p>
 
+      <div class="card" id="stCard">
+        <h3 data-i18n="st_title"></h3>
+        <p class="muted" data-i18n="st_desc"></p>
+        <div class="row"><button id="btnStAnalyze" class="primary" data-i18n="st_analyze"></button>
+          <button id="btnStPlan" data-i18n="st_plan"></button></div>
+        <div id="stStatus" class="muted"></div>
+        <div id="stDrives"></div>
+        <div id="stProfiles"></div>
+        <div id="stTop"></div>
+        <div id="stPlan" hidden>
+          <div id="stItems"></div>
+          <div id="stCross" class="muted"></div>
+          <div class="row between"><b id="stTotal"></b><button id="btnStRun" class="primary" data-i18n="st_run"></button></div>
+          <div class="muted small" data-i18n="st_note_est"></div>
+        </div>
+        <div id="stReport" class="card ok" hidden></div>
+      </div>
+
       <div class="card">
         <h3 data-i18n="dd_title"></h3>
         <p class="muted" data-i18n="dd_desc"></p>
@@ -149,6 +167,7 @@
     <!-- ACCOUNTS -->
     <section class="tab" id="tab-accounts">
       <h1 data-i18n="acc_title"></h1>
+      <div id="offBanner" class="card" hidden data-i18n="off_banner"></div>
       <p class="lead" data-i18n="acc_sub"></p>
 
       <div class="card">
@@ -218,12 +237,21 @@
       </div>
 
       <div class="card">
+        <h3 data-i18n="off_title"></h3>
+        <p class="muted" data-i18n="off_desc"></p>
+        <label class="chk"><input type="checkbox" id="offSw"><span data-i18n="off_on"></span></label>
+      </div>
+
+      <div class="card">
         <h3 data-i18n="perf_title"></h3>
+        <div id="cpuLine" class="status"></div>
         <p class="muted" data-i18n="perf_desc"></p>
         <div class="grid2">
           <label><span data-i18n="perf_cap"></span> <b id="capV"></b><input id="pCap" type="range" min="20" max="100" step="5"></label>
           <label><span data-i18n="perf_threads"></span> <b id="thrV"></b><input id="pThr" type="range" min="1" max="4" step="1"></label>
-          <label><span data-i18n="perf_ctx"></span><select id="pCtx"><option>6144</option><option>8192</option><option>12288</option></select></label>
+          <label><span data-i18n="perf_ctx"></span><select id="pCtx"><option>2048</option><option>4096</option><option>6144</option><option>8192</option></select></label>
+          <label><span data-i18n="perf_batch"></span><select id="pBatch"><option>64</option><option>128</option><option>256</option></select></label>
+          <label><span data-i18n="perf_ubatch"></span><select id="pUbatch"><option>32</option><option>64</option><option>128</option></select></label>
           <label><span data-i18n="perf_idle"></span><select id="pIdle"><option value="120">2</option><option value="300">5</option><option value="900">15</option><option value="3600">60</option></select></label>
         </div>
         <div class="row"><button id="btnPerfSave" class="primary" data-i18n="save"></button><button id="btnPerfLow" data-i18n="perf_low"></button></div>

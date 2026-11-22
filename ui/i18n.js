@@ -347,6 +347,114 @@
     err_url_not_allowed: "Questo indirizzo non è consentito.", err_url_not_public: "Questo indirizzo non è un sito web pubblico."
   };
 
+
+  Object.assign(D.en, {
+    st_run: "Run the selected items",
+    st_title: "Storage panel", st_desc: "See where your space goes on every drive and for every user, then get a plan that compares cleaning, compression, the vault and duplicate merging. Nothing changes until you approve.",
+    st_analyze: "Analyze drives and users", st_plan: "Build a savings plan", st_drives: "Drives", st_profiles: "Users on this PC", st_active: "signed in", st_old: "not signed in", st_current: "you", st_moved: "moved to another place",
+    st_top: "Biggest items", st_big_folders: "Biggest folders", st_big_files: "Biggest files", st_partial: "partial: time limit", st_wait: "Working… this can take a few minutes.",
+    st_risk_low: "low risk", st_risk_medium: "medium risk", st_reversible: "reversible", st_irreversible: "not reversible (it comes back by itself)",
+    st_m_cleanup: "cleaning", st_m_ntfs: "compression", st_m_vault: "vault", st_m_dedupe: "merge duplicates",
+    st_expected: "Expected", st_actual: "Actual", st_measured: "Measured free-space change", st_before: "before", st_after: "after",
+    st_nothing: "No safe savings found.", st_cross: "{g} groups of identical files exist on different drives (about {s} if you keep one copy of each). They can’t be merged automatically across drives, so decide yourself which copy to keep.",
+    st_confirm: "I will do the following:", st_done: "Plan finished", st_note_est: "Expected numbers are estimates. The real result is measured after the work.", st_undo_hint: "Reversible actions can be undone from “Undo history”.",
+    fk_desktop: "Desktop", fk_documents: "Documents", fk_pictures: "Pictures", fk_videos: "Videos", fk_music: "Music", fk_downloads: "Downloads", fk_appdata: "App data",
+    off_title: "Strict offline mode", off_desc: "When on (recommended), nothing in this app can reach the internet: no web search, email, Telegram, WhatsApp or downloads. The brain talks only to 127.0.0.1 on this PC. The block is inside the program, not only on the buttons.", off_on: "Strict offline mode",
+    off_confirm: "Internet features (web search, Gmail, Telegram, downloads) will become available. Your private data is still never sent in searches. Turn offline mode off?", off_now_on: "Offline mode is on.", off_now_off: "Offline mode is off.",
+    off_banner: "Strict offline mode is on, so these accounts are disabled. Turn it off in Settings if you want to use them.",
+    offline_manual: "Offline mode is on: import the engine and the model manually (Settings → More options).",
+    perf_batch: "Batch size", perf_ubatch: "Micro-batch size", cpu_line: "Processor features: {f}", engine_ok: "engine verified on this PC", engine_unverified: "engine not verified yet",
+    err_offline: "Strict offline mode is on, so this was blocked. You can change it in Settings.", err_context_full: "The conversation became too long for the brain’s memory window. Start a new chat or raise the memory window in Settings.",
+    err_engine_incompatible: "This engine does not run on your processor. Use an engine built for AVX without AVX2 (see the README).", err_engine_crashed: "The engine stopped unexpectedly. Try lighter settings.",
+    err_special_links: "This is a link (junction) and is skipped for safety.", err_file_offline: "This cloud file is not downloaded and is skipped.", err_no_plan: "The plan expired. Build it again.", err_nothing_selected: "Nothing is selected.", err_no_record: "The item is no longer available. Scan again.", err_bad_kind: "Unknown action."
+  });
+  Object.assign(D.ar, {
+    st_run: "نفّذ العناصر المحددة",
+    st_title: "لوحة المساحة", st_desc: "اعرف أين تذهب مساحتك في كل قرص ولكل مستخدم، ثم احصل على خطة تقارن بين التنظيف والضغط والخزنة ودمج المتطابقات. لا يتغير شيء قبل موافقتك.",
+    st_analyze: "حلّل الأقراص والمستخدمين", st_plan: "ابنِ خطة توفير", st_drives: "الأقراص", st_profiles: "المستخدمون على هذا الجهاز", st_active: "مسجّل دخوله", st_old: "غير مسجّل", st_current: "أنت", st_moved: "منقول لمكان آخر",
+    st_top: "أكبر العناصر", st_big_folders: "أكبر المجلدات", st_big_files: "أكبر الملفات", st_partial: "جزئي: انتهى الوقت", st_wait: "جارٍ العمل… قد يستغرق بضع دقائق.",
+    st_risk_low: "خطر منخفض", st_risk_medium: "خطر متوسط", st_reversible: "يمكن التراجع", st_irreversible: "لا تراجع (يعود تلقائياً)",
+    st_m_cleanup: "تنظيف", st_m_ntfs: "ضغط", st_m_vault: "خزنة", st_m_dedupe: "دمج متطابقات",
+    st_expected: "المتوقع", st_actual: "الفعلي", st_measured: "تغيّر المساحة الفارغة المقاس", st_before: "قبل", st_after: "بعد",
+    st_nothing: "لم أجد توفيراً آمناً.", st_cross: "توجد {g} مجموعة ملفات متطابقة على قرصين مختلفين (حوالي {s} إن أبقيت نسخة واحدة من كل منها). لا يمكن دمجها تلقائياً بين قرصين، فقرّر بنفسك أي نسخة تبقى.",
+    st_confirm: "سأنفّذ التالي:", st_done: "اكتملت الخطة", st_note_est: "الأرقام المتوقعة تقديرات. النتيجة الحقيقية تُقاس بعد التنفيذ.", st_undo_hint: "الإجراءات القابلة للتراجع يمكن التراجع عنها من «سجل التراجع».",
+    fk_desktop: "سطح المكتب", fk_documents: "المستندات", fk_pictures: "الصور", fk_videos: "الفيديو", fk_music: "الموسيقى", fk_downloads: "التنزيلات", fk_appdata: "بيانات البرامج",
+    off_title: "وضع عدم الاتصال الصارم", off_desc: "عند تفعيله (موصى به) لا يستطيع شيء في التطبيق الوصول للإنترنت: لا بحث ولا بريد ولا تيليجرام ولا واتساب ولا تنزيل. العقل يتحدث فقط مع 127.0.0.1 على جهازك. المنع داخل البرنامج نفسه وليس على الأزرار فقط.", off_on: "وضع عدم الاتصال الصارم",
+    off_confirm: "ستتاح ميزات الإنترنت (البحث وGmail وتيليجرام والتنزيل). بياناتك الخاصة لا تُرسل في البحث أبداً. هل تُوقف وضع عدم الاتصال؟", off_now_on: "وضع عدم الاتصال مفعّل.", off_now_off: "وضع عدم الاتصال متوقف.",
+    off_banner: "وضع عدم الاتصال الصارم مفعّل، لذلك هذه الحسابات معطّلة. أوقفه من الإعدادات إن أردت استخدامها.",
+    offline_manual: "وضع عدم الاتصال مفعّل: استورد المحرك والنموذج يدوياً (الإعدادات ← خيارات أكثر).",
+    perf_batch: "حجم الدفعة", perf_ubatch: "حجم الدفعة الصغرى", cpu_line: "خصائص المعالج: {f}", engine_ok: "المحرك مُتحقَّق على هذا الجهاز", engine_unverified: "المحرك لم يُتحقَّق منه بعد",
+    err_offline: "وضع عدم الاتصال الصارم مفعّل فتم المنع. يمكنك تغييره من الإعدادات.", err_context_full: "طالت المحادثة أكثر من نافذة ذاكرة العقل. ابدأ محادثة جديدة أو ارفع نافذة الذاكرة من الإعدادات.",
+    err_engine_incompatible: "هذا المحرك لا يعمل على معالجك. استخدم محركاً مبنياً لـ AVX بدون AVX2 (راجع README).", err_engine_crashed: "توقف المحرك فجأة. جرّب إعدادات أخف.",
+    err_special_links: "هذا رابط (Junction) وتم تخطيه للأمان.", err_file_offline: "هذا ملف سحابي غير منزَّل وتم تخطيه.", err_no_plan: "انتهت صلاحية الخطة. ابنِها من جديد.", err_nothing_selected: "لم تحدد شيئاً.", err_no_record: "العنصر لم يعد متاحاً. افحص من جديد.", err_bad_kind: "إجراء غير معروف."
+  });
+  Object.assign(D.id, {
+    st_run: "Jalankan item terpilih",
+    st_title: "Panel penyimpanan", st_desc: "Lihat ke mana ruang Anda pergi di setiap drive dan setiap pengguna, lalu dapatkan rencana yang membandingkan pembersihan, kompresi, brankas, dan penggabungan duplikat. Tidak ada yang berubah sebelum Anda setuju.",
+    st_analyze: "Analisis drive dan pengguna", st_plan: "Buat rencana penghematan", st_drives: "Drive", st_profiles: "Pengguna di PC ini", st_active: "sedang masuk", st_old: "tidak masuk", st_current: "Anda", st_moved: "dipindah ke tempat lain",
+    st_top: "Item terbesar", st_big_folders: "Folder terbesar", st_big_files: "File terbesar", st_partial: "sebagian: batas waktu", st_wait: "Bekerja… bisa beberapa menit.",
+    st_risk_low: "risiko rendah", st_risk_medium: "risiko sedang", st_reversible: "bisa dibatalkan", st_irreversible: "tidak bisa dibatalkan (muncul lagi sendiri)",
+    st_m_cleanup: "pembersihan", st_m_ntfs: "kompresi", st_m_vault: "brankas", st_m_dedupe: "gabung duplikat",
+    st_expected: "Perkiraan", st_actual: "Sebenarnya", st_measured: "Perubahan ruang kosong terukur", st_before: "sebelum", st_after: "sesudah",
+    st_nothing: "Tidak ada penghematan aman.", st_cross: "Ada {g} grup file identik di drive berbeda (sekitar {s} jika Anda menyimpan satu salinan tiap grup). Tidak bisa digabung otomatis antar drive, jadi tentukan sendiri salinan mana yang disimpan.",
+    st_confirm: "Saya akan melakukan ini:", st_done: "Rencana selesai", st_note_est: "Angka perkiraan hanyalah estimasi. Hasil nyata diukur setelah selesai.", st_undo_hint: "Tindakan yang bisa dibatalkan dapat dibatalkan dari “Riwayat batal”.",
+    fk_desktop: "Desktop", fk_documents: "Dokumen", fk_pictures: "Gambar", fk_videos: "Video", fk_music: "Musik", fk_downloads: "Unduhan", fk_appdata: "Data aplikasi",
+    off_title: "Mode offline ketat", off_desc: "Saat aktif (disarankan), tidak ada bagian aplikasi yang bisa mengakses internet: tanpa pencarian web, email, Telegram, WhatsApp, atau unduhan. Otak hanya berbicara dengan 127.0.0.1 di PC ini. Pemblokiran ada di dalam program, bukan hanya di tombol.", off_on: "Mode offline ketat",
+    off_confirm: "Fitur internet (pencarian web, Gmail, Telegram, unduhan) akan tersedia. Data pribadi Anda tetap tidak pernah dikirim dalam pencarian. Matikan mode offline?", off_now_on: "Mode offline aktif.", off_now_off: "Mode offline mati.",
+    off_banner: "Mode offline ketat aktif, jadi akun-akun ini dinonaktifkan. Matikan di Pengaturan bila ingin memakainya.",
+    offline_manual: "Mode offline aktif: impor mesin dan model secara manual (Pengaturan → Opsi lain).",
+    perf_batch: "Ukuran batch", perf_ubatch: "Ukuran mikro-batch", cpu_line: "Fitur prosesor: {f}", engine_ok: "mesin terverifikasi di PC ini", engine_unverified: "mesin belum diverifikasi",
+    err_offline: "Mode offline ketat aktif sehingga ini diblokir. Anda bisa mengubahnya di Pengaturan.", err_context_full: "Percakapan terlalu panjang untuk jendela memori otak. Mulai obrolan baru atau naikkan jendela memori di Pengaturan.",
+    err_engine_incompatible: "Mesin ini tidak berjalan di prosesor Anda. Gunakan mesin yang dibuat untuk AVX tanpa AVX2 (lihat README).", err_engine_crashed: "Mesin berhenti tiba-tiba. Coba pengaturan lebih ringan.",
+    err_special_links: "Ini adalah tautan (junction) dan dilewati demi keamanan.", err_file_offline: "File cloud ini belum diunduh dan dilewati.", err_no_plan: "Rencana kedaluwarsa. Buat lagi.", err_nothing_selected: "Belum ada yang dipilih.", err_no_record: "Item tidak tersedia lagi. Pindai ulang.", err_bad_kind: "Tindakan tidak dikenal."
+  });
+  Object.assign(D.fr, {
+    st_run: "Exécuter la sélection",
+    st_title: "Panneau de stockage", st_desc: "Voyez où va votre espace sur chaque disque et pour chaque utilisateur, puis obtenez un plan qui compare nettoyage, compression, coffre et fusion des doublons. Rien ne change sans votre accord.",
+    st_analyze: "Analyser disques et utilisateurs", st_plan: "Créer un plan d’économie", st_drives: "Disques", st_profiles: "Utilisateurs de ce PC", st_active: "connecté", st_old: "non connecté", st_current: "vous", st_moved: "déplacé ailleurs",
+    st_top: "Plus gros éléments", st_big_folders: "Plus gros dossiers", st_big_files: "Plus gros fichiers", st_partial: "partiel : limite de temps", st_wait: "Travail en cours… cela peut prendre quelques minutes.",
+    st_risk_low: "risque faible", st_risk_medium: "risque moyen", st_reversible: "réversible", st_irreversible: "non réversible (revient tout seul)",
+    st_m_cleanup: "nettoyage", st_m_ntfs: "compression", st_m_vault: "coffre", st_m_dedupe: "fusion de doublons",
+    st_expected: "Attendu", st_actual: "Réel", st_measured: "Variation mesurée de l’espace libre", st_before: "avant", st_after: "après",
+    st_nothing: "Aucune économie sûre trouvée.", st_cross: "{g} groupes de fichiers identiques existent sur des disques différents (environ {s} si vous gardez une copie de chacun). Ils ne peuvent pas être fusionnés automatiquement entre disques : décidez vous-même quelle copie garder.",
+    st_confirm: "Je vais faire ceci :", st_done: "Plan terminé", st_note_est: "Les chiffres attendus sont des estimations. Le résultat réel est mesuré après coup.", st_undo_hint: "Les actions réversibles peuvent être annulées depuis « Historique d’annulation ».",
+    fk_desktop: "Bureau", fk_documents: "Documents", fk_pictures: "Images", fk_videos: "Vidéos", fk_music: "Musique", fk_downloads: "Téléchargements", fk_appdata: "Données d’applications",
+    off_title: "Mode hors ligne strict", off_desc: "Activé (recommandé), rien dans cette application ne peut accéder à Internet : ni recherche web, ni e-mail, ni Telegram, ni WhatsApp, ni téléchargement. Le cerveau ne parle qu’à 127.0.0.1 sur ce PC. Le blocage est dans le programme, pas seulement sur les boutons.", off_on: "Mode hors ligne strict",
+    off_confirm: "Les fonctions Internet (recherche web, Gmail, Telegram, téléchargements) seront disponibles. Vos données privées ne sont toujours jamais envoyées dans les recherches. Désactiver le mode hors ligne ?", off_now_on: "Mode hors ligne activé.", off_now_off: "Mode hors ligne désactivé.",
+    off_banner: "Le mode hors ligne strict est activé : ces comptes sont désactivés. Désactivez-le dans Réglages pour les utiliser.",
+    offline_manual: "Mode hors ligne activé : importez le moteur et le modèle manuellement (Réglages → Plus d’options).",
+    perf_batch: "Taille de lot", perf_ubatch: "Taille de micro-lot", cpu_line: "Fonctions du processeur : {f}", engine_ok: "moteur vérifié sur ce PC", engine_unverified: "moteur pas encore vérifié",
+    err_offline: "Le mode hors ligne strict est activé, donc c’est bloqué. Vous pouvez le changer dans Réglages.", err_context_full: "La conversation est devenue trop longue pour la fenêtre mémoire du cerveau. Ouvrez une nouvelle discussion ou augmentez la fenêtre mémoire dans Réglages.",
+    err_engine_incompatible: "Ce moteur ne fonctionne pas sur votre processeur. Utilisez un moteur compilé pour AVX sans AVX2 (voir le README).", err_engine_crashed: "Le moteur s’est arrêté de façon inattendue. Essayez des réglages plus légers.",
+    err_special_links: "C’est un lien (jonction), ignoré par sécurité.", err_file_offline: "Ce fichier cloud n’est pas téléchargé et est ignoré.", err_no_plan: "Le plan a expiré. Recréez-le.", err_nothing_selected: "Rien n’est sélectionné.", err_no_record: "L’élément n’est plus disponible. Relancez l’analyse.", err_bad_kind: "Action inconnue."
+  });
+  Object.assign(D.it, {
+    st_run: "Esegui la selezione",
+    st_title: "Pannello archiviazione", st_desc: "Vedi dove va lo spazio su ogni unità e per ogni utente, poi ottieni un piano che confronta pulizia, compressione, caveau e unione dei duplicati. Non cambia nulla senza la tua approvazione.",
+    st_analyze: "Analizza unità e utenti", st_plan: "Crea un piano di risparmio", st_drives: "Unità", st_profiles: "Utenti di questo PC", st_active: "connesso", st_old: "non connesso", st_current: "tu", st_moved: "spostata altrove",
+    st_top: "Elementi più grandi", st_big_folders: "Cartelle più grandi", st_big_files: "File più grandi", st_partial: "parziale: limite di tempo", st_wait: "Lavoro in corso… può richiedere alcuni minuti.",
+    st_risk_low: "rischio basso", st_risk_medium: "rischio medio", st_reversible: "reversibile", st_irreversible: "non reversibile (ritorna da solo)",
+    st_m_cleanup: "pulizia", st_m_ntfs: "compressione", st_m_vault: "caveau", st_m_dedupe: "unione duplicati",
+    st_expected: "Previsto", st_actual: "Effettivo", st_measured: "Variazione misurata dello spazio libero", st_before: "prima", st_after: "dopo",
+    st_nothing: "Nessun risparmio sicuro trovato.", st_cross: "Esistono {g} gruppi di file identici su unità diverse (circa {s} se tieni una copia per gruppo). Non si possono unire automaticamente tra unità: decidi tu quale copia tenere.",
+    st_confirm: "Farò quanto segue:", st_done: "Piano completato", st_note_est: "I numeri previsti sono stime. Il risultato reale viene misurato dopo.", st_undo_hint: "Le azioni reversibili si possono annullare da “Cronologia annullamenti”.",
+    fk_desktop: "Desktop", fk_documents: "Documenti", fk_pictures: "Immagini", fk_videos: "Video", fk_music: "Musica", fk_downloads: "Download", fk_appdata: "Dati delle app",
+    off_title: "Modalità offline rigorosa", off_desc: "Se attiva (consigliata), nulla in questa app può raggiungere Internet: niente ricerca web, e-mail, Telegram, WhatsApp o download. Il cervello parla solo con 127.0.0.1 su questo PC. Il blocco è nel programma, non solo sui pulsanti.", off_on: "Modalità offline rigorosa",
+    off_confirm: "Le funzioni Internet (ricerca web, Gmail, Telegram, download) diventeranno disponibili. I tuoi dati privati non vengono comunque mai inviati nelle ricerche. Disattivare la modalità offline?", off_now_on: "Modalità offline attiva.", off_now_off: "Modalità offline disattivata.",
+    off_banner: "La modalità offline rigorosa è attiva, quindi questi account sono disabilitati. Disattivala in Impostazioni per usarli.",
+    offline_manual: "Modalità offline attiva: importa motore e modello manualmente (Impostazioni → Altre opzioni).",
+    perf_batch: "Dimensione batch", perf_ubatch: "Dimensione micro-batch", cpu_line: "Funzionalità del processore: {f}", engine_ok: "motore verificato su questo PC", engine_unverified: "motore non ancora verificato",
+    err_offline: "La modalità offline rigorosa è attiva, quindi è bloccato. Puoi cambiarla in Impostazioni.", err_context_full: "La conversazione è diventata troppo lunga per la finestra di memoria del cervello. Apri una nuova chat o aumenta la finestra di memoria in Impostazioni.",
+    err_engine_incompatible: "Questo motore non funziona sul tuo processore. Usa un motore compilato per AVX senza AVX2 (vedi il README).", err_engine_crashed: "Il motore si è fermato inaspettatamente. Prova impostazioni più leggere.",
+    err_special_links: "È un collegamento (junction), saltato per sicurezza.", err_file_offline: "Questo file cloud non è scaricato e viene saltato.", err_no_plan: "Il piano è scaduto. Ricrealo.", err_nothing_selected: "Non hai selezionato nulla.", err_no_record: "L’elemento non è più disponibile. Analizza di nuovo.", err_bad_kind: "Azione sconosciuta."
+  });
+  // The strict-offline default changes what "safety" means:
+  D.en.safe_3 = "By default the app is fully offline. Only if you turn strict offline mode off can it use: web search, Gmail, Telegram and one-time downloads of the engine/model.";
+  D.ar.safe_3 = "التطبيق يعمل افتراضياً بلا إنترنت تماماً. فقط إن أوقفت وضع عدم الاتصال الصارم يستطيع استخدام: البحث والبريد وتيليجرام وتنزيل المحرك/النموذج مرة واحدة.";
+  D.id.safe_3 = "Secara bawaan aplikasi sepenuhnya offline. Hanya jika Anda mematikan mode offline ketat, aplikasi bisa memakai: pencarian web, Gmail, Telegram, dan unduhan sekali untuk mesin/model.";
+  D.fr.safe_3 = "Par défaut l’application est entièrement hors ligne. Ce n’est que si vous désactivez le mode hors ligne strict qu’elle peut utiliser : recherche web, Gmail, Telegram et téléchargement unique du moteur/modèle.";
+  D.it.safe_3 = "Per impostazione predefinita l’app è completamente offline. Solo se disattivi la modalità offline rigorosa può usare: ricerca web, Gmail, Telegram e download una tantum di motore/modello.";
+
   const KEY = "ga_lang";
   const RTL = { ar: true };
   function detect() {

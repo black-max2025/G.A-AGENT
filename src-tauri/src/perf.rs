@@ -103,3 +103,46 @@ pub fn scan_threads() -> usize {
         .unwrap_or(2);
     (n / 2).max(1)
 }
+
+/// Free physical memory in bytes (None when it cannot be read).
+#[cfg(windows)]
+pub fn available_ram() -> Option<u64> {
+    use windows_sys::Win32::System::SystemInformation::{GlobalMemoryStatusEx, MEMORYSTATUSEX};
+    let mut m: MEMORYSTATUSEX = unsafe { std::mem::zeroed() };
+    m.dwLength = std::mem::size_of::<MEMORYSTATUSEX>() as u32;
+    if unsafe { GlobalMemoryStatusEx(&mut m) } != 0 {
+        Some(m.ullAvailPhys)
+    } else {
+        None
+    }
+}
+
+#[cfg(not(windows))]
+pub fn available_ram() -> Option<u64> {
+    None
+}
+
+/// Lighter settings when memory is short, so the app never freezes the PC:
+/// (context, threads). Pure function so it can be tested.
+pub fn fit_to_memory(ctx: u32, threads: u32, model_bytes: u64, avail: Option<u64>) -> (u32, u32) {
+    const GB: u64 = 1 << 30;
+    match avail {
+        Some(a) if a < model_bytes + GB => (ctx.min(2048), 1),
+        Some(a) if a < model_bytes + 2 * GB => (ctx.min(3072), threads.min(2)),
+        _ => (ctx, threads),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn low_memory_falls_back_to_light_settings() {
+        const GB: u64 = 1 << 30;
+        assert_eq!(fit_to_memory(4096, 2, 2 * GB, Some(2 * GB)), (2048, 1));
+        assert_eq!(fit_to_memory(4096, 2, GB, Some(2 * GB + GB / 2)), (3072, 2));
+        assert_eq!(fit_to_memory(4096, 2, GB, Some(6 * GB)), (4096, 2));
+        assert_eq!(fit_to_memory(4096, 2, GB, None), (4096, 2));
+    }
+}

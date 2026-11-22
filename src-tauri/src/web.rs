@@ -170,6 +170,7 @@ async fn get_pinned(url: &str) -> Result<(String, String), String> {
 }
 
 pub async fn fetch_page(url: &str) -> Result<String, String> {
+    crate::netguard::guard()?;
     if !is_allowed(url) {
         return Err("ERR_URL_NOT_FROM_SEARCH".to_string());
     }
@@ -268,6 +269,7 @@ fn parse_results(html: &str) -> Vec<(String, String, String)> {
 }
 
 pub async fn search(query: &str) -> Result<String, String> {
+    crate::netguard::guard()?;
     if !query_ok(query) {
         return Err("ERR_QUERY_REFUSED".to_string());
     }

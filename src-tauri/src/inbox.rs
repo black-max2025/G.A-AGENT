@@ -133,6 +133,7 @@ pub fn digits(phone: &str) -> Result<String, String> {
 /// WhatsApp has no safe API for a personal account: the message is prepared and WhatsApp opens
 /// with the text filled in. The user presses "send" himself.
 pub fn whatsapp_open(phone: &str, text: &str) -> Result<String, String> {
+    crate::netguard::guard()?;
     let d = digits(phone)?;
     if text.trim().is_empty() || text.chars().count() > 1000 {
         return Err("ERR_BAD_TEXT".to_string());
@@ -143,6 +144,7 @@ pub fn whatsapp_open(phone: &str, text: &str) -> Result<String, String> {
 
 /// Sends an approved reply. Callers must have the user's approval.
 pub async fn send_reply(id: &str, text: &str) -> Result<String, String> {
+    crate::netguard::guard()?;
     let m = get(id)?;
     if text.trim().is_empty() || text.chars().count() > 1000 {
         return Err("ERR_BAD_TEXT".to_string());

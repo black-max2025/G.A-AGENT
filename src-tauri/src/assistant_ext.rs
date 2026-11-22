@@ -32,11 +32,13 @@ pub const CONFIRM_EXTRA: &[&str] = &[
     "apply_dedupe",
     "inbox_reply",
     "whatsapp_prepare",
+    "storage_apply",
 ];
 
 pub fn domain_of(name: &str) -> Option<&'static str> {
     match name {
-        "scan_dedupe" | "apply_dedupe" | "plan_organize" | "apply_organize" | "read_document"
+        "storage_overview" | "storage_top" | "storage_plan" | "storage_apply" | "list_profiles"
+        | "scan_dedupe" | "apply_dedupe" | "plan_organize" | "apply_organize" | "read_document"
         | "search_in_files" => Some("files"),
         "list_apps" | "list_processes" | "system_health" | "list_startup" | "open_app"
         | "close_app" => Some("programs"),
@@ -52,6 +54,11 @@ pub fn domain_of(name: &str) -> Option<&'static str> {
 
 pub fn label_extra(n: &str) -> Option<&'static str> {
     Some(match n {
+        "storage_overview" => "تحليل الأقراص والمستخدمين",
+        "list_profiles" => "اكتشاف ملفات المستخدمين",
+        "storage_top" => "ترتيب أكبر الملفات والمجلدات",
+        "storage_plan" => "إعداد خطة توفير المساحة",
+        "storage_apply" => "تنفيذ خطة توفير المساحة",
         "scan_dedupe" => "البحث عن ملفات مكررة قابلة للدمج",
         "apply_dedupe" => "دمج الملفات المكررة (توفير مساحة)",
         "plan_organize" => "تحضير خطة ترتيب مجلد",
@@ -92,6 +99,12 @@ pub fn label_extra(n: &str) -> Option<&'static str> {
 pub fn tools_extra() -> Vec<Value> {
     let s = |d: &str| json!({ "type": "string", "description": d });
     vec![
+        // storage intelligence (all numbers come from Rust)
+        tool("list_profiles", "List every Windows user profile on every drive (active or old) with the real locations of Documents, Downloads, Desktop, Pictures and Videos, including folders moved to another drive. Read only.", json!({}), &[]),
+        tool("storage_overview", "Drives (total/used/free) plus user profiles and the size of their known folders. Read only.", json!({}), &[]),
+        tool("storage_top", "Biggest folders and files under a path, with data kind and age. Read only.", json!({ "path": s("absolute folder or drive path, for example C:\\ or D:\\") }), &["path"]),
+        tool("storage_plan", "Build a space-saving plan for the given drives (empty list = all). It compares cleanup, NTFS compression, vault freezing and duplicate merging, and gives ESTIMATED savings and risks. Nothing is changed. Returns plan_id and item ids.", json!({ "drives": { "type": "array", "items": { "type": "string" }, "description": "drive letters such as C: and D:" } }), &[]),
+        tool("storage_apply", "Execute a plan from storage_plan (recommended items, or only item_ids). Needs user approval. Returns before/after sizes, expected vs ACTUAL savings and errors.", json!({ "plan_id": s("id returned by storage_plan"), "item_ids": { "type": "array", "items": { "type": "string" }, "description": "optional: only these items" } }), &["plan_id"]),
         // files & documents
         tool("scan_dedupe", "Find identical large media/archive/installer files in a folder that can share one copy on disk (real space saving, nothing is deleted). Returns a plan id.", json!({ "path": s("absolute folder path") }), &["path"]),
         tool("apply_dedupe", "Apply a plan from scan_dedupe: identical files become hard links to one copy. Reversible from the journal. Needs user approval.", json!({ "plan_id": s("id returned by scan_dedupe") }), &["plan_id"]),
@@ -491,6 +504,16 @@ fn reject_sensitive(p: &Path) -> Result<(), String> {
 
 pub fn describe_extra(name: &str, a: &Value) -> Option<String> {
     Some(match name {
+        "storage_apply" => format!(
+            "تنفيذ خطة توفير المساحة. ما يلي تقديرات وليست نتائج، وسأقيس التوفير الفعلي بعد التنفيذ:\n{}",
+            crate::storage::describe_apply(
+                a["plan_id"].as_str().unwrap_or(""),
+                a["item_ids"].as_array().map(|v| v
+                    .iter()
+                    .filter_map(|x| x.as_str().map(|s| s.to_string()))
+                    .collect())
+            )
+        ),
         "apply_organize" => format!(
             "تنفيذ خطة ترتيب المجلد (يمكن التراجع من تبويب السجل):\n{}",
             files::plan_summary(a["plan_id"].as_str().unwrap_or(""))

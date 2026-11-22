@@ -158,7 +158,7 @@ fn app_info(name: &str) -> (String, String) {
 
 // ---------------------------------------------------------------- estimation
 
-fn incompressible(ext: &str) -> bool {
+pub fn incompressible(ext: &str) -> bool {
     matches!(
         ext,
         "zip"

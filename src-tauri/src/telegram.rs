@@ -56,6 +56,7 @@ fn token() -> Option<String> {
 }
 
 async fn api(tok: &str, method: &str, body: Value, secs: u64) -> Result<Value, String> {
+    crate::netguard::guard()?;
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(secs))
         .build()
@@ -77,6 +78,7 @@ async fn api(tok: &str, method: &str, body: Value, secs: u64) -> Result<Value, S
 }
 
 pub async fn send_message(chat: i64, text: &str) -> Result<(), String> {
+    crate::netguard::guard()?;
     let tok = token().ok_or_else(|| "ERR_NO_BOT".to_string())?;
     api(
         &tok,
@@ -202,6 +204,9 @@ async fn handle(app: &AppHandle, tok: &str, cfg: &mut Cfg, u: &Value) {
 }
 
 pub fn start(app: AppHandle) {
+    if crate::netguard::strict() {
+        return;
+    }
     if RUNNING.swap(true, Ordering::SeqCst) {
         return;
     }
@@ -253,6 +258,7 @@ pub struct TgStatus {
 
 #[tauri::command]
 pub async fn tg_connect(app: AppHandle, bot_token: String) -> Result<String, String> {
+    crate::netguard::guard()?;
     let t = bot_token.trim().to_string();
     if t.len() < 30 || t.len() > 80 || !t.contains(':') || t.chars().any(|c| c.is_whitespace()) {
         return Err("ERR_BAD_TOKEN".to_string());
@@ -316,6 +322,10 @@ pub fn tg_status() -> TgStatus {
         paired: c.owner.is_some(),
         running: RUNNING.load(Ordering::SeqCst),
     }
+}
+
+pub fn stop_listener() {
+    RUNNING.store(false, Ordering::SeqCst);
 }
 
 pub fn autostart(app: AppHandle) {
